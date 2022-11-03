@@ -146,13 +146,16 @@ class FibCode():
                 rect_board[row][bit] = new_val
         return rect_board
         
-    def shift_by_x(self, board, power=1):
+    def shift_by_x(self, bitarr, power=1): # fuck makes everything a float 
         Hx = np.linalg.matrix_power(self.Hx, power)
-        return np.matmul(Hx, board)
+        print(Hx.shape)
+        print(bitarr.shape)
+        print("cup that you just downed")
+        return np.matmul(Hx, bitarr)
     
-    def shift_by_y(self, board, power=1):
-        Hy = np.linalg.matrix_power(board, power)
-        return np.matmul(Hy, board)
+    def shift_by_y(self, bitarr, power=1): # fuck makes everything a float 
+        Hy = np.linalg.matrix_power(self.Hy, power)
+        return np.matmul(Hy, bitarr)
         
         
         
