@@ -23,7 +23,7 @@ class FibCode():
      L 
      0 1 2 3 ....                                L - 1]
     """
-    def __init__(self, L=8,p=0.001, decip=1000, start_arr = None, code_bottom_row_start_sequence=None, pause=1000):
+    def __init__(self, L=8,p=0.001, decip=1000, code_bottom_row_start_sequence=None, pause=1000):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
         self.L = L # len
         self.no_cols = L
@@ -33,15 +33,20 @@ class FibCode():
         self.decip = decip
         self.pause = pause
         # fund_sym 
-        start_arr = [0]*self.L
-        start_arr[self.L//2] = 1 
+        
         if code_bottom_row_start_sequence is None:
+            start_arr = [0]*self.L
+            start_arr[self.L//2] = 1
             self.original_code_board = self._generate_init_symmetry(start_arr)
         else:
             self.original_code_board = self.set_code_word(code_bottom_row_start_sequence)
         self.original_code_board.shape = self.no_bits
         self.board = self.generate_errors()
-        self.init_symm = self._generate_init_symmetry(start_arr)
+        self.fundamental_symmetry = self._generate_init_symmetry()
+        self.fundamental_symmetry.shape = (self.L//2, self.L)
+        self.fundamental_stabilizer_parity_check_matrix = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
+        self.fundamental_symmetry.shape = self.no_bits
+        self.fundamental_matching_graph = self.generate_fundamental_matching_graph()
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
         
@@ -160,7 +165,7 @@ class FibCode():
         rect_board = np.zeros((self.L//2, self.L), dtype=int)
         if not start_arr: 
             start_arr = np.zeros(self.L, dtype=int)
-            start_arr[0] = 1
+            start_arr[self.L//2] = 1
         rect_board[0] = start_arr
         for row in range(1, self.L//2):
             for bit in range(self.L):
@@ -191,6 +196,8 @@ class FibCode():
         return sol
         
     def generate_check_matrix_from_faces(self, stab_faces):
+        # TODO slow because of all the shape changing 
+        """REQUIRES L//2 x L """
         # AHHHH 
         # create parity check matrix for each 
         # np.append([[1, 2, 3], [4, 5, 6]], [[7, 8, 9]], axis=0)
@@ -210,16 +217,62 @@ class FibCode():
                     new_stab[d] = 1
                     parity_mat = np.append(parity_mat, [new_stab], axis = 0)
         return parity_mat
-    
+   
+   
+   
+    def generate_fundamental_matching_graph(self):
+        # "there's gotta be a smarter way to do this "
+        error_pairs = set() # (stab_face1, stab_face2, errorbit)
+        single_error = np.zeros(self.nobits, dtype=0)
+        
+        for b in range(self.no_bits):
+            if self.nobits > 10 and b % (self.no_bits//10) == 0:
+                logging.info(f"on bit: {b} and error set looks like: {error_pairs}")
+            # clear prev_bit 
+            prev_bit = (b - 1) % self.no_bits
+            single_error[prev_bit] = 0 
+            
+            # set new error 
+            single_error[b] = 1
+            
+            # what do it light? 
+            lighted = np.matmul(self.fundamental_stabilizer_parity_check_matrix, single_error)
+            
+            stabs = np.where(lighted == 1)
+            
+            if len(stabs) != 4 and len(stabs) != 2:
+                emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs}"
+                logging.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
+                raise Exception(emsg)
+            
+            s0 = stabs[0]
+            s1 = stabs[1]
+            error_pairs.add((s0, s1, b,))
+            
+            if len(stabs) == 4:
+                logging.info(f"bit error in {b} in fundamental symmetry caused {len(stabs)} errors")
+                s2 = stabs[2]
+                s3 = stabs[3]
+                error_pairs.add((s2, s3, b,))
+            
+
+        return error_pairs
+            
+            
+            
+            
+            
+        
+     
     def decode_fib_code(self):
         
-        hori_stab_faces = self._generate_init_symmetry()
-        verti_stab_faces = self._generate_init_symmetry()
+        hori_stab_faces = copy.deepcopy(self.fundamental_symmetry)
+        verti_stab_faces = copy.deepcopy(self.fundamental_symmetry)
         
         hori_stab_faces.shape = (self.L**2)//2 # how bad is this 
         verti_stab_faces.shape = (self.L**2)//2 # how bad is this 
         
-        # center them on 0 bit, unnecessary, we don't even start on the first bit 
+        # center them on same bit, unnecessary, we don't even start on the first bit # TODO (do this work?)
         hori_stab_faces = self.shift_by_y(hori_stab_faces)
         verti_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces), self.L//2)
         
@@ -236,19 +289,16 @@ class FibCode():
                     if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
                         logging.info(f" currently on round: {round_count}")
                         logging.info(f"current board is {self.board}")
+                        
+                # TODO consider csc_matrix? are the gains even worth it? 
                 hori_stab_faces = self.shift_by_x(hori_stab_faces)
                 verti_stab_faces = self.shift_by_x(verti_stab_faces)
                 
-                
-                
-                # TODO consider csc_matrix? are the gains even worth it? 
-                
-                
-                hori_stab_faces = np.reshape(hori_stab_faces, (self.L//2, self.L))
-                verti_stab_faces = np.reshape(verti_stab_faces, (self.L//2, self.L))
+                hori_stab_faces_rect = np.reshape(hori_stab_faces, (self.L//2, self.L))
+                verti_stab_faces_rect = np.reshape(verti_stab_faces, (self.L//2, self.L))
 
-                hori_check_matrix = self.generate_check_matrix_from_faces(hori_stab_faces) 
-                verti_check_matrix = self.generate_check_matrix_from_faces(verti_stab_faces)
+                hori_check_matrix = self.generate_check_matrix_from_faces(hori_stab_faces_rect) 
+                verti_check_matrix = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
 
     
                 hori_matching = pm.Matching(hori_check_matrix) # TODO add weights 
