@@ -50,7 +50,7 @@ class FibCode():
         self.fundamental_symmetry.shape = (self.L//2, self.L)
         self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_stabs = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
-        self.fundamental_single_error_syndromes = self.generate_fundamental_single_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
+        self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
         
