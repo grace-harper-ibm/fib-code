@@ -171,19 +171,24 @@ class FibCode():
     def shift_by_x(self, bitarr, power=1): # fuck makes everything a float 
         power = power % self.L
         Hx = np.linalg.matrix_power(self.Hx, power)
-        return np.matmul(Hx, bitarr)
-    
+        sol =  np.matmul(Hx, bitarr)
+        sol = sol.astype(int)
+        return sol
     def shift_by_y(self, bitarr, power=1): # fuck makes everything a float 
         power = power % (self.L//2)
         Hy = np.linalg.matrix_power(self.Hy, power)
-        return np.matmul(Hy, bitarr)
+        sol =  np.matmul(Hy, bitarr)
+        sol = sol.astype(int)
+        return sol 
 
         
     def _calc_syndrome(self,check_matr, board=None):
         if board is None: 
             board = self.board
         #  % 2 # TODO numpy almost certainly has a way of efficiently dealing w binary matrices -- figure that out 
-        return np.matmul(check_matr, board) % 2 
+        sol =  np.matmul(check_matr, board) % 2 
+        sol = sol.astype(int)
+        return sol
         
     def generate_check_matrix_from_faces(self, stab_faces):
         # AHHHH 
@@ -227,9 +232,10 @@ class FibCode():
                 if round_count > self.pause:
                     return 
                 round_count += 1
-                if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
-                    logging.info(f" currently on round: {round_count}")
-                    logging.info(f"current board is {self.board}")
+                if self.no_bits > 10:
+                    if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
+                        logging.info(f" currently on round: {round_count}")
+                        logging.info(f"current board is {self.board}")
                 hori_stab_faces = self.shift_by_x(hori_stab_faces)
                 verti_stab_faces = self.shift_by_x(verti_stab_faces)
                 
@@ -237,6 +243,10 @@ class FibCode():
                 
                 # TODO consider csc_matrix? are the gains even worth it? 
                 
+                
+                hori_stab_faces = np.reshape(hori_stab_faces, (self.L//2, self.L))
+                verti_stab_faces = np.reshape(verti_stab_faces, (self.L//2, self.L))
+
                 hori_check_matrix = self.generate_check_matrix_from_faces(hori_stab_faces) 
                 verti_check_matrix = self.generate_check_matrix_from_faces(verti_stab_faces)
 
