@@ -94,7 +94,7 @@ class FibCodeTest(unittest.TestCase):
         startarr = [0,]*4
         startarr[(4//2) - 1] = 1
         fund_sym = f._generate_init_symmetry(start_arr=startarr)
-        fcheck = f.generate_check_matrix_from_faces(fund_sym)
+        fcheck, _ = f.generate_check_matrix_from_faces(fund_sym)
         
         assert fcheck.shape == fcheck_sol.shape, f"{ fcheck.shape} but should be {fcheck_sol.shape} "
         assert (fcheck == fcheck_sol).all(), f" {fcheck} should be {fcheck_sol}"

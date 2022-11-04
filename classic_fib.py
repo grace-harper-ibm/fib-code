@@ -44,7 +44,7 @@ class FibCode():
         self.board = self.generate_errors()
         self.fundamental_symmetry = self._generate_init_symmetry()
         self.fundamental_symmetry.shape = (self.L//2, self.L)
-        self.fundamental_stabilizer_parity_check_matrix = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
+        self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_stabs = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
         self.fundamental_matching_graph = self.generate_fundamental_matching_graph()
         self.Hx = self._generate_plus_x_trans_matrix()
@@ -203,8 +203,11 @@ class FibCode():
         # AHHHH 
         # create parity check matrix for each 
         # np.append([[1, 2, 3], [4, 5, 6]], [[7, 8, 9]], axis=0)
+        
+        faces_to_stabs_rows = {}  # {x:y} where row x of the parity check matrix has face centered at bit b
         parity_mat = np.empty((0, self.no_bits), int)
         
+        stab_row = 0
         for row in range(self.no_rows):
             for col in range(self.no_cols):
                 if stab_faces[row][col] == 1:
@@ -218,7 +221,9 @@ class FibCode():
                     new_stab[c] = 1
                     new_stab[d] = 1
                     parity_mat = np.append(parity_mat, [new_stab], axis = 0)
-        return parity_mat
+                    faces_to_stabs_rows[stab_row] = b
+                    
+        return parity_mat, faces_to_stabs_rows
    
    
    
@@ -299,8 +304,8 @@ class FibCode():
                 hori_stab_faces_rect = np.reshape(hori_stab_faces, (self.L//2, self.L))
                 verti_stab_faces_rect = np.reshape(verti_stab_faces, (self.L//2, self.L))
 
-                hori_check_matrix = self.generate_check_matrix_from_faces(hori_stab_faces_rect) 
-                verti_check_matrix = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
+                hori_check_matrix, _ = self.generate_check_matrix_from_faces(hori_stab_faces_rect) 
+                verti_check_matrix, _ = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
 
     
                 hori_matching = pm.Matching(hori_check_matrix) # TODO add weights 
