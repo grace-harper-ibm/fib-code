@@ -5,10 +5,14 @@ import logging
 import math
 import random
 
+import networkx as nx
+import rustworkx as rx
+
 tt = datetime.datetime.now()
 logging.basicConfig(filename= "logs/" + str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
 import numpy as np
 import pymatching as pm
+import rustworkx as rx
 from scipy.sparse import csc_matrix
 
 
@@ -46,7 +50,7 @@ class FibCode():
         self.fundamental_symmetry.shape = (self.L//2, self.L)
         self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_stabs = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
-        self.fundamental_matching_graph = self.generate_fundamental_matching_graph()
+        self.fundamental_single_error_syndromes = self.generate_fundamental_single_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
         
@@ -54,7 +58,7 @@ class FibCode():
         logging.info(f" error board is code {self.board}")
         logging.info(f" initial symmetry is: {self.fundamental_symmetry}")
         logging.info(f"fundamental_stabilizer_parity_check_matrix is : {self.fundamental_stabilizer_parity_check_matrix}")
-        logging.info(f"fundamental_matching_graph is : {self.fundamental_matching_graph}")
+        logging.info(f"fundamental_single_error_syndromes is : {self.fundamental_single_error_syndromes}")
         logging.info(f" Hx {self.Hx}")
         logging.info(f" Hy is code {self.Hy}")
 
@@ -227,23 +231,26 @@ class FibCode():
    
    
    
-    def generate_fundamental_matching_graph(self):
-        # "there's gotta be a smarter way to do this "
-        error_pairs = set() # (stab_face1, stab_face2, errorbit)
-        single_error = np.zeros(self.no_bits, dtype=int)
+    def generate_all_possible_error_syndromes(self, parity_check_matrix, no_bits = None):
         
-        for b in range(self.no_bits):
-            if self.no_bits > 10 and b % (self.no_bits//10) == 0:
+        # "there's gotta be a smarter way to do this "
+        if no_bits is None:
+            no_bits = self.no_bits
+        error_pairs = set() # (stab_face1, stab_face2, errorbit)
+        single_error = np.zeros(no_bits, dtype=int)
+        
+        for b in range(no_bits):
+            if no_bits > 10 and b % (no_bits//10) == 0:
                 logging.info(f"on bit: {b} and error set looks like: {error_pairs}")
             # clear prev_bit 
-            prev_bit = (b - 1) % self.no_bits
+            prev_bit = (b - 1) % no_bits
             single_error[prev_bit] = 0 
             
             # set new error 
             single_error[b] = 1
             
             # what do it light? 
-            lighted = np.matmul(self.fundamental_stabilizer_parity_check_matrix, single_error)
+            lighted = np.matmul(parity_check_matrix, single_error)
             stabs = np.where(lighted == 1)[0]
             
             if len(stabs) != 0:  # TODO only check on bit errors nearish the triangle
@@ -264,9 +271,40 @@ class FibCode():
             
 
         return error_pairs
-            
-            
-            
+
+
+
+    def ret2net(graph: rx.PyGraph): # stolen from Wootton 
+        """Convert rustworkx graph to equivalent networkx graph."""
+        nx_graph = nx.Graph()
+        for j, node in enumerate(graph.nodes()):
+            nx_graph.add_node(j)
+            for k, v in node.items():
+                nx.set_node_attributes(nx_graph, {j: v}, k)
+        for j, (n0, n1) in enumerate(graph.edge_list()):
+            nx_graph.add_edge(n0, n1)
+            for k, v in graph.edges()[j].items():
+                nx.set_edge_attributes(nx_graph, {(n0, n1): v}, k)
+        return nx_graph
+
+    def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
+        all_possible_errors = self.generate_all_possible_error_syndromes(parity_check_matrix, board_size)
+        matching_graph =  self.error_pairs2graph(all_possible_errors)
+        return matching_graph
+    
+    def error_pairs2graph(self, error_graphs, no_stabs=None):
+        """Make sure a stab node has the same index as it's value"""
+        if no_stabs is None:
+            no_stabs = len(self.fundamental_stabilizer_parity_check_matrix) # rows of parity check matrix 
+        S = rx.PyGraph()
+        for i in range(no_stabs):
+            S.add_node(i)
+        # copied James Wootton's code, a true hero. 
+        for n0, n1, e in error_graphs:
+            j = S.nodes().index(n0) 
+            k = S.nodes().index(n1) 
+            S.add_edge(j, k, str(e))
+        return S 
             
             
         
@@ -307,16 +345,31 @@ class FibCode():
                 hori_check_matrix, _ = self.generate_check_matrix_from_faces(hori_stab_faces_rect) 
                 verti_check_matrix, _ = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
 
+                hori_matching_graph = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
+                verti_matching_graph =  self.ret2net(self.generate_error_syndrome_graph(verti_check_matrix, self.no_bits))
     
-                hori_matching = pm.Matching(hori_check_matrix) # TODO add weights 
-                verti_matching = pm.Matching(verti_check_matrix) # TODO add weights 
+                hori_matching = pm.Matching(hori_matching_graph) # TODO add weights 
+                verti_matching = pm.Matching(verti_matching_graph) # TODO add weights 
         
-                hori_syndrome = self._calc_syndrome(hori_check_matrix) 
-                verti_syndrome = self._calc_syndrome(verti_check_matrix)
-        
+                hori_syndrome_mat = self._calc_syndrome(hori_check_matrix) 
+                verti_syndrome_mat = self._calc_syndrome(verti_check_matrix)
+                
+                # make sure hori_syndrome matches
+                hori_syndrome_post_graph = [0]*self.no_bits
+                for i in range(len(hori_syndrome_mat)):
+                    if hori_syndrome_mat[i] == 1:
+                        hori_syndrome_post_graph[hori_matching_graph.nodes().index(i) ] = 1
+                
+                verti_syndrome_post_graph = [0] * self.no_bits
+                for i in range(len(verti_syndrome_mat)):
+                    if verti_syndrome_mat[i] == 1:
+                        verti_syndrome_post_graph[verti_matching_graph.nodes().index(i)] = 1 
+                        
+                         
+            
  
-                hori_prediction = hori_matching.decode(hori_syndrome) 
-                verti_prediction = verti_matching.decode(verti_syndrome) 
+                hori_prediction = hori_matching.decode(hori_syndrome_post_graph) 
+                verti_prediction = verti_matching.decode(verti_syndrome_post_graph) 
         
                 hboard = self.board ^ hori_prediction #apply correction 
                 vboard = self.board ^ verti_prediction
