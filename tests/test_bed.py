@@ -85,7 +85,7 @@ class FibCodeTest(unittest.TestCase):
         
       
     def test_gen_stabs(self):
-        fcheck_sol = np.array([[0, 0, 0, 0, 0, 0, 0, 0,], [0, 0, 0, 0, 0, 0, 0, 0,],
+        fcheck_sol = np.array([
  [1, 1, 1, 0, 0, 1 ,0, 0,],
  [1, 0, 0, 0, 1 ,1, 0, 1],
  [0, 1 ,0, 0, 1, 1 ,1, 0,],

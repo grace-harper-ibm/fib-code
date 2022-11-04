@@ -203,7 +203,7 @@ class FibCode():
         # AHHHH 
         # create parity check matrix for each 
         # np.append([[1, 2, 3], [4, 5, 6]], [[7, 8, 9]], axis=0)
-        parity_mat =np.reshape(np.array([0] * self.no_bits * 2), ( 2, self.no_bits))
+        parity_mat = np.empty((0, self.no_bits), int)
         
         for row in range(self.no_rows):
             for col in range(self.no_cols):
@@ -252,7 +252,7 @@ class FibCode():
                 error_pairs.add((s0, s1, b,))
             
                 if len(stabs) == 4:
-                    logging.info(f"bit error in {b} in fundamental symmetry caused {len(stabs)} errors")
+                    logging.info(f" a bit error in {b} in fundamental symmetry caused a 4 stab error: {stabs} errors")
                     s2 = stabs[2]
                     s3 = stabs[3]
                     error_pairs.add((s2, s3, b,))
