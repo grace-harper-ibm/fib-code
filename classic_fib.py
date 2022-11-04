@@ -339,10 +339,11 @@ class FibCode():
                 hori_stab_faces = self.shift_by_x(hori_stab_faces)
                 verti_stab_faces = self.shift_by_x(verti_stab_faces)
                 
+                
                 hori_stab_faces_rect = np.reshape(hori_stab_faces, (self.L//2, self.L))
                 verti_stab_faces_rect = np.reshape(verti_stab_faces, (self.L//2, self.L))
 
-                hori_check_matrix, _ = self.generate_check_matrix_from_faces(hori_stab_faces_rect) 
+                hori_check_matrix, _ = self.generate_check_matrix_from_faces(hori_stab_faces_rect)  # TODO make a special +y/x for check mats
                 verti_check_matrix, _ = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
 
                 hori_matching_graph = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
