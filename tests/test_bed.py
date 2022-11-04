@@ -34,7 +34,7 @@ class FibCodeTest(unittest.TestCase):
             sol = test[0]
             assert f.bit_to_rc(bit) == sol, f"{bit} did not convert to correct rc rep: {sol}" 
     
-    def test_trans_matrices(self):
+    def test_x_shift(self):
         L = 32 
         f = FibCode(L)
         input = np.array(list(range((L**2)//2)))
@@ -57,6 +57,34 @@ class FibCodeTest(unittest.TestCase):
             assert (ans == sol).all(), f"for {s} the result: {ans} is not {sol}"            
             assert ans.shape == sol.shape, f"for ans shape: {s.shape}  is not {sol.shape} on {s}"
         
-    
+      
+    def test_y_shift(self):
+        L = 32 
+        f = FibCode(L)
+        input = np.array(list(range((L**2)//2)))
+        
+        shiftbyminus1 = np.array([np.array(list(range((L*row), ((L*row) + L)))) for row in range(1, L//2)])
+        shiftbyminus1 = np.append(shiftbyminus1, [list(range(L))]) # put top row at bottom 
+        
+        shiftby1 = np.array(list(range(L * (L//2 - 1), L * (L//2 ))))
+        shiftby1 = np.append(shiftby1, np.array([np.array(list(range((L*row), ((L*row) + L)))) for row in range(0, (L//2) - 1)]))
+
+        ytests = [
+            [-1, shiftbyminus1],
+            [1, shiftby1],
+            [L//2, np.array(list(range((L**2)//2)))]
+        ]
+        
+        for yt in ytests:
+            s = yt[0]
+            sol = yt[1]
+            ans = f.shift_by_y(input, s)
+            print(s)
+            assert (ans == sol).all(), f"for {s} the ans: {ans} was not {sol} "
+            assert ans.shape == sol.shape, f" for {s} the ans shape: {ans.shape} did not match the sol shape: {sol.shape}"
+        
+      
+      
+      
 if __name__ == "__main__":
     unittest.main()

@@ -147,16 +147,15 @@ class FibCode():
         return rect_board
         
     def shift_by_x(self, bitarr, power=1): # fuck makes everything a float 
+        power = power % self.L
         Hx = np.linalg.matrix_power(self.Hx, power)
-        print(Hx.shape)
-        print(bitarr.shape)
-        print("cup that you just downed")
         return np.matmul(Hx, bitarr)
     
     def shift_by_y(self, bitarr, power=1): # fuck makes everything a float 
+        power = power % self.L//2
         Hy = np.linalg.matrix_power(self.Hy, power)
-        return np.matmul(Hy, bitarr)
-        
+        sol = np.matmul(Hy, bitarr)
+        return sol
         
         
     def generate_parity_from_faces(self, stab_faces):
