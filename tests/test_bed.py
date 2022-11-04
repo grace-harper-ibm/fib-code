@@ -1,4 +1,5 @@
-# https://www.youtube.com/watch?v=RHyE_erqAe0
+# https://www.youtube.com/watch?v=RHyE_erqAe0,
+import copy
 import math
 import unittest
 
@@ -11,7 +12,6 @@ class FibCodeTest(unittest.TestCase):
     
     def test_basic(self):
         f = FibCode(8)
-        
 
     def test_bit_representation_trans(self):
         f = FibCode(32) # L = 32 
@@ -59,7 +59,7 @@ class FibCodeTest(unittest.TestCase):
         
       
     def test_y_shift(self):
-        L = 32 
+        L = 4
         f = FibCode(L)
         input = np.array(list(range((L**2)//2)))
         
@@ -79,12 +79,24 @@ class FibCodeTest(unittest.TestCase):
             s = yt[0]
             sol = yt[1]
             ans = f.shift_by_y(input, s)
-            print(s)
             assert (ans == sol).all(), f"for {s} the ans: {ans} was not {sol} "
             assert ans.shape == sol.shape, f" for {s} the ans shape: {ans.shape} did not match the sol shape: {sol.shape}"
         
       
-      
+    def test_gen_stabs(self):
+        fcheck_sol = np.array([[0, 0, 0, 0, 0, 0, 0, 0,], [0, 0, 0, 0, 0, 0, 0, 0,],
+ [1, 1, 1, 0, 0, 1 ,0, 0,],
+ [1, 0, 0, 0, 1 ,1, 0, 1],
+ [0, 1 ,0, 0, 1, 1 ,1, 0,],
+ [0, 0, 1 ,0, 0, 1, 1 ,1]])
+        f = FibCode(4)
+        startarr = [0,]*4
+        startarr[(4//2) - 1] = 1
+        fund_sym = f._generate_init_symmetry(start_arr=startarr)
+        fcheck = f.generate_check_matrix_from_faces(fund_sym)
+        
+        assert fcheck.shape == fcheck_sol.shape, f"{ fcheck.shape} but should be {fcheck_sol.shape} "
+        assert (fcheck == fcheck_sol).all(), f" {fcheck} should be {fcheck_sol}"
       
 if __name__ == "__main__":
     unittest.main()

@@ -1,8 +1,12 @@
 # grug brain 
 import copy
+import datetime
+import logging
 import math
 import random
 
+tt = datetime.datetime.now()
+logging.basicConfig(filename= str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
 import numpy as np
 import pymatching as pm
 from scipy.sparse import csc_matrix
@@ -19,27 +23,45 @@ class FibCode():
      L 
      0 1 2 3 ....                                L - 1]
     """
-    def __init__(self, L=8,p=0.001, decip=1000, start_arr = None):
+    def __init__(self, L=8,p=0.001, decip=1000, start_arr = None, code_bottom_row_start_sequence=None, pause=1000):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
         self.L = L # len
+        self.no_cols = L
+        self.no_rows = L//2 
         self.no_bits = (L**2)//2 # no bits
         self.p = p #probability of error on a given bit
         self.decip = decip
-        # self.board = np.packbits(np.zeros((L**2)//2), axis=1)
-        self.board =np.zeros((self.L**2)//2, dtype=int)
+        self.pause = pause
+        # fund_sym 
+        start_arr = [0]*self.L
+        start_arr[self.L//2] = 1 
+        if code_bottom_row_start_sequence is None:
+            self.original_code_board = self._generate_init_symmetry(start_arr)
+        else:
+            self.original_code_board = self.set_code_word(code_bottom_row_start_sequence)
+        self.original_code_board.shape = self.no_bits
+        self.board = self.generate_errors()
         self.init_symm = self._generate_init_symmetry(start_arr)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
+        
+        logging.info(f" original code baord is  {self.original_code_board}")
+        logging.info(f" error board is code {self.board}")
+        logging.info(f" initial symmetry is: {self.init_symm}")
+        logging.info(f" Hx {self.Hx}")
+        logging.info(f" Hy is code {self.Hy}")
 
-        pass 
+
     def set_code_word(bottom_row_start_sequence):
-        pass 
+        raise NotImplementedError("wish you were here...")
     
     def generate_errors(self):
+        board = copy.deepcopy(self.original_code_board)
         cutoff = self.p*self.decip
-        for i in len(self.board):
+        for i in range(self.no_bits):
             if random.randrange(0, self.decip) <= cutoff:
-                self.board[i] ^= 1
+                board[i] ^= 1
+        return board 
                 
     
     def bit_to_rc(self, bit):
@@ -127,15 +149,15 @@ class FibCode():
     def _generate_plus_y_trans_matrix(self):
         " performs a -1 y (or a + 1 y if you're indexing rows top to bottom like numpy :...( "
         H = np.zeros(( self.no_bits,  self.no_bits), dtype=int)
+
         for b in  range(self.no_bits):
-            #H[new_bit][old_bit]
             new_bit = (b + self.L) %  self.no_bits
             H[new_bit][b] = 1
         return H 
 
     def _generate_init_symmetry(self, start_arr = None):
         # fundamental symmetries start from the top instead of the bottom because numpy
-        rect_board = np.reshape(self.board, (self.L//2, self.L))
+        rect_board = np.zeros((self.L//2, self.L), dtype=int)
         if not start_arr: 
             start_arr = np.zeros(self.L, dtype=int)
             start_arr[0] = 1
@@ -152,114 +174,101 @@ class FibCode():
         return np.matmul(Hx, bitarr)
     
     def shift_by_y(self, bitarr, power=1): # fuck makes everything a float 
-        power = power % self.L//2
+        power = power % (self.L//2)
         Hy = np.linalg.matrix_power(self.Hy, power)
-        sol = np.matmul(Hy, bitarr)
-        return sol
+        return np.matmul(Hy, bitarr)
+
         
+    def _calc_syndrome(self,check_matr, board=None):
+        if board is None: 
+            board = self.board
+        #  % 2 # TODO numpy almost certainly has a way of efficiently dealing w binary matrices -- figure that out 
+        return np.matmul(check_matr, board) % 2 
         
-    def generate_parity_from_faces(self, stab_faces):
+    def generate_check_matrix_from_faces(self, stab_faces):
         # AHHHH 
         # create parity check matrix for each 
         # np.append([[1, 2, 3], [4, 5, 6]], [[7, 8, 9]], axis=0)
-        parity_mat = np.array([0] * self.L)
+        parity_mat =np.reshape(np.array([0] * self.no_bits * 2), ( 2, self.no_bits))
         
-        for row in self.L//2:
-            for col in self.L:
+        for row in range(self.no_rows):
+            for col in range(self.no_cols):
                 if stab_faces[row][col] == 1:
                     a = self.rc_to_bit(row, col)
-                    b = self.rc_to_bit((row)% self.L, (col - 1)%(self.L//2))
-                    c = self.rc_to_bit((row)% self.L, (col + 1 )%(self.L//2))
-                    d = self.rc_to_bit((row - 1)% self.L, (col )%(self.L//2))
-                    new_stab = [0] * self.L 
+                    b = self.rc_to_bit((row)% self.no_rows, (col - 1)%self.no_cols)
+                    c = self.rc_to_bit((row)% self.no_rows, (col + 1 )%self.no_cols)
+                    d = self.rc_to_bit((row - 1)% self.no_rows, col %self.no_cols)
+                    new_stab = np.array([0] * self.no_bits)
                     new_stab[a] = 1
                     new_stab[b] = 1
                     new_stab[c] = 1
                     new_stab[d] = 1
-                    np.append(parity_mat, [new_stab])
+                    parity_mat = np.append(parity_mat, [new_stab], axis = 0)
         return parity_mat
     
     def decode_fib_code(self):
-        hori = [0] * (self.L**2)/2
-        verti = [0] * (self.L**2)/2
         
         hori_stab_faces = self._generate_init_symmetry()
-        verti_stab = self._generate_init_symmetry()
+        verti_stab_faces = self._generate_init_symmetry()
         
         hori_stab_faces.shape = (self.L**2)//2 # how bad is this 
-        verti_stab.shape = (self.L**2)//2 # how bad is this 
+        verti_stab_faces.shape = (self.L**2)//2 # how bad is this 
         
-        # center them on 0 bit
+        # center them on 0 bit, unnecessary, we don't even start on the first bit 
         hori_stab_faces = self.shift_by_y(hori_stab_faces)
-        verti_stab = self.shift_by_x(self.shift_by_y(hori_stab_faces), self.L//2)
+        verti_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces), self.L//2)
         
+        round_count = 0
 
-
-
-    
-        hori_matching = pm.Matching() # TODO add weights 
-        verti_matching = pm.Matching() # TODO add weights 
-        
-
-        
-        hori_prediction = hori_matching.decode(self.board) 
-        verti_prediction = verti_matching.decode(self.board) 
-        
-        hboard = self.board ^ hori_prediction #apply correction 
-        vboard = self.board ^ verti_prediction
-        dboard = self.board ^ (hori_prediction * verti_prediction) # only flip bits they agree should be flipped 
-        
-        
-        
-        
-        hori_stab_faces.shape = (self.L//2, self.L) # how bad is this 
-        verti_stab.shape = (self.L//2, self.L)  # how bad is this        
-        # so here we go again... 
-        for height in range(self.L/2):
-            cur_parity_check = self.shift_by_y(cur_parity_check)
-            for length in range(self.L):
-                cur_parity_check = self.shift_by_x(cur_parity_check)
-                # consider csc_matrix? are the gains even worth it? 
-                cur_parity_check.shape = (self.L//2, self.L) # TODO  how slow is this reshaping?? 
-                
-                matching = pm.Matching(cur_parity_check) # TODO add weights 
-                prediction = matching.decode(self.board)
-                
-                # TODO only run each graphing decoder once and save the output?  -- i guess can't bc dynamically changes the board
-                # for a bit b:
-                # hori is fundamental symmetry 
+        for _ in range(self.L//2): # will wrap around to all bits 
+            hori_stab_faces = self.shift_by_y(hori_stab_faces)
+            verti_stab_faces = self.shift_by_y(verti_stab_faces)
+            for _ in range(self.L):
+                if round_count > self.pause:
+                    return 
+                round_count += 1
+                if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
+                    logging.info(f" currently on round: {round_count}")
+                    logging.info(f"current board is {self.board}")
+                hori_stab_faces = self.shift_by_x(hori_stab_faces)
+                verti_stab_faces = self.shift_by_x(verti_stab_faces)
                 
                 
                 
+                # TODO consider csc_matrix? are the gains even worth it? 
                 
-                
-                 
-        for bindx in range(self.no_bits ):
-            pass 
-        # for bit in codebits: 
-        #      hori_sym = create_symmetry_with_hori_cross_along_bit(bit)
-        #      vert_sym = create_symmetry_with_vert_cross_along_bit(bit)  
-        #      
-        #      h_corrections = run_matching(hori_sym)
-        #      v_corrections = run_matching(vert_sym)
-        # 
-        #      h_syndrome = test_apply_correction(h_corrections)
-        #      v_syndrome = test_apply_correction(v_corrections)
-        #      d_syndrome = test_apply_correction(h_corrections + v_corrections)
-        # 
-        #      # NOW apply the only the correction that has the syndrome with the fewest 1s 
-        #       min_syn = get_best_syndrome(h_syndrome, v_syndrome, d_syndrome)
-        #       
-        #       if h_syndrome == min_syn: 
-        #           apply_correction_BUT_only_on_the_bit_in_question(h_corrections, bit)
-        #       elif v_su... # you get the idea 
-    
-
+                hori_check_matrix = self.generate_check_matrix_from_faces(hori_stab_faces) 
+                verti_check_matrix = self.generate_check_matrix_from_faces(verti_stab_faces)
 
     
-    
-if __name__ == "__main__":
-    fb = FibCode()
-     
-    
+                hori_matching = pm.Matching(hori_check_matrix) # TODO add weights 
+                verti_matching = pm.Matching(verti_check_matrix) # TODO add weights 
+        
+                hori_syndrome = self._calc_syndrome(hori_check_matrix) 
+                verti_syndrome = self._calc_syndrome(verti_check_matrix)
+        
+ 
+                hori_prediction = hori_matching.decode(hori_syndrome) 
+                verti_prediction = verti_matching.decode(verti_syndrome) 
+        
+                hboard = self.board ^ hori_prediction #apply correction 
+                vboard = self.board ^ verti_prediction
+                dboard = self.board ^ (hori_prediction * verti_prediction) # only flip bits they agree should be flipped 
+       
+                # test new syndroms 
+        
+                hcorsynd  = [(self._calc_syndrome(hori_check_matrix, hboard)== 1).sum(), hboard, "hori"]
+                vcorsynd  = [(self._calc_syndrome(hori_check_matrix, vboard)== 1).sum(), vboard, "verti"]
+                dcorsynd  = [(self._calc_syndrome(hori_check_matrix, dboard)== 1).sum(), dboard, "dcor"]
+        
+                opts = [hcorsynd, vcorsynd, dcorsynd]
+        
+                winner = min(opts, key=lambda x: x[0])
+                self.board = winner[1]         # update board to best one 
+                logging.info(f"initial correction correction information: f{winner}")
+                
+                if (winner[0] == 0):
+                    return "yay!!"
+            
+   
     
