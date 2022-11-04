@@ -6,7 +6,7 @@ import math
 import random
 
 tt = datetime.datetime.now()
-logging.basicConfig(filename= str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
+logging.basicConfig(filename= "logs/" + str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
 import numpy as np
 import pymatching as pm
 from scipy.sparse import csc_matrix
@@ -52,7 +52,9 @@ class FibCode():
         
         logging.info(f" original code baord is  {self.original_code_board}")
         logging.info(f" error board is code {self.board}")
-        logging.info(f" initial symmetry is: {self.init_symm}")
+        logging.info(f" initial symmetry is: {self.fundamental_symmetry}")
+        logging.info(f"fundamental_stabilizer_parity_check_matrix is : {self.fundamental_stabilizer_parity_check_matrix}")
+        logging.info(f"fundamental_matching_graph is : {self.fundamental_matching_graph}")
         logging.info(f" Hx {self.Hx}")
         logging.info(f" Hy is code {self.Hy}")
 
@@ -223,10 +225,10 @@ class FibCode():
     def generate_fundamental_matching_graph(self):
         # "there's gotta be a smarter way to do this "
         error_pairs = set() # (stab_face1, stab_face2, errorbit)
-        single_error = np.zeros(self.nobits, dtype=0)
+        single_error = np.zeros(self.no_bits, dtype=int)
         
         for b in range(self.no_bits):
-            if self.nobits > 10 and b % (self.no_bits//10) == 0:
+            if self.no_bits > 10 and b % (self.no_bits//10) == 0:
                 logging.info(f"on bit: {b} and error set looks like: {error_pairs}")
             # clear prev_bit 
             prev_bit = (b - 1) % self.no_bits
@@ -237,23 +239,23 @@ class FibCode():
             
             # what do it light? 
             lighted = np.matmul(self.fundamental_stabilizer_parity_check_matrix, single_error)
+            stabs = np.where(lighted == 1)[0]
             
-            stabs = np.where(lighted == 1)
+            if len(stabs) != 0:  # TODO only check on bit errors nearish the triangle
+                if len(stabs) != 4 and len(stabs) != 2:
+                    emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs}"
+                    logging.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
+                    raise Exception(emsg)
             
-            if len(stabs) != 4 and len(stabs) != 2:
-                emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs}"
-                logging.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
-                raise Exception(emsg)
+                s0 = stabs[0]
+                s1 = stabs[1]
+                error_pairs.add((s0, s1, b,))
             
-            s0 = stabs[0]
-            s1 = stabs[1]
-            error_pairs.add((s0, s1, b,))
-            
-            if len(stabs) == 4:
-                logging.info(f"bit error in {b} in fundamental symmetry caused {len(stabs)} errors")
-                s2 = stabs[2]
-                s3 = stabs[3]
-                error_pairs.add((s2, s3, b,))
+                if len(stabs) == 4:
+                    logging.info(f"bit error in {b} in fundamental symmetry caused {len(stabs)} errors")
+                    s2 = stabs[2]
+                    s3 = stabs[3]
+                    error_pairs.add((s2, s3, b,))
             
 
         return error_pairs
