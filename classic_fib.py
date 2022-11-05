@@ -45,16 +45,18 @@ class FibCode():
         else:
             self.original_code_board = self.set_code_word(code_bottom_row_start_sequence)
         self.original_code_board.shape = self.no_bits
-        self.board = self.generate_errors()
+        self.original_errors_board =  self.generate_errors()
+        self.board = copy.deepcopy(self.original_errors_board)
         self.fundamental_symmetry = self._generate_init_symmetry()
         self.fundamental_symmetry.shape = (self.L//2, self.L)
-        self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_stabs = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
+        self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_faces = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
         self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
         
         logging.info(f" original code baord is  {self.original_code_board}")
+        logging.info(f" original_errors_board is  {self.original_errors_board}")
         logging.info(f" error board is code {self.board}")
         logging.info(f" initial symmetry is: {self.fundamental_symmetry}")
         logging.info(f"fundamental_stabilizer_parity_check_matrix is : {self.fundamental_stabilizer_parity_check_matrix}")
@@ -274,17 +276,14 @@ class FibCode():
 
 
 
-    def ret2net(graph: rx.PyGraph): # stolen from Wootton 
+    def ret2net(self, graph: rx.PyGraph): # stolen from Wootton 
         """Convert rustworkx graph to equivalent networkx graph."""
         nx_graph = nx.Graph()
-        for j, node in enumerate(graph.nodes()):
+        for j, stabid in enumerate(graph.nodes()):
             nx_graph.add_node(j)
-            for k, v in node.items():
-                nx.set_node_attributes(nx_graph, {j: v}, k)
+            nx.set_node_attributes(nx_graph, {j: stabid}, str(stabid))
         for j, (n0, n1) in enumerate(graph.edge_list()):
             nx_graph.add_edge(n0, n1)
-            for k, v in graph.edges()[j].items():
-                nx.set_edge_attributes(nx_graph, {(n0, n1): v}, k)
         return nx_graph
 
     def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
@@ -343,8 +342,8 @@ class FibCode():
                 hori_stab_faces_rect = np.reshape(hori_stab_faces, (self.L//2, self.L))
                 verti_stab_faces_rect = np.reshape(verti_stab_faces, (self.L//2, self.L))
 
-                hori_check_matrix, _ = self.generate_check_matrix_from_faces(hori_stab_faces_rect)  # TODO make a special +y/x for check mats
-                verti_check_matrix, _ = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
+                hori_check_matrix, hori_parity_rows_to_faces  = self.generate_check_matrix_from_faces(hori_stab_faces_rect)  # TODO make a special +y/x for check mats
+                verti_check_matrix, verti_parity_rows_to_faces = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
 
                 hori_matching_graph = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
                 verti_matching_graph =  self.ret2net(self.generate_error_syndrome_graph(verti_check_matrix, self.no_bits))
@@ -355,26 +354,35 @@ class FibCode():
                 hori_syndrome_mat = self._calc_syndrome(hori_check_matrix) 
                 verti_syndrome_mat = self._calc_syndrome(verti_check_matrix)
                 
-                # make sure hori_syndrome matches
-                hori_syndrome_post_graph = [0]*self.no_bits
-                for i in range(len(hori_syndrome_mat)):
-                    if hori_syndrome_mat[i] == 1:
-                        hori_syndrome_post_graph[hori_matching_graph.nodes().index(i) ] = 1
+                # # make sure hori_syndrome matches TODO make sure nodes are what I think they are. 
+                # hori_syndrome_post_graph = [0]*len(hori_syndrome_mat) 
+                # for i in range(len(hori_syndrome_mat)):
+                #     if hori_syndrome_mat[i] == 1:
+                #         hori_syndrome_post_graph[hori_matching_graph.nodes().index(i) ] = 1
                 
-                verti_syndrome_post_graph = [0] * self.no_bits
-                for i in range(len(verti_syndrome_mat)):
-                    if verti_syndrome_mat[i] == 1:
-                        verti_syndrome_post_graph[verti_matching_graph.nodes().index(i)] = 1 
-                        
-                         
-            
+                # verti_syndrome_post_graph = [0] * len(verti_syndrome_mat)
+                # for i in range(len(verti_syndrome_mat)):
+                #     if verti_syndrome_mat[i] == 1:
+                #         verti_syndrome_post_graph[verti_matching_graph.nodes().index(i)] = 1 
+                
  
-                hori_prediction = hori_matching.decode(hori_syndrome_post_graph) 
-                verti_prediction = verti_matching.decode(verti_syndrome_post_graph) 
+                hori_prediction = hori_matching.decode(hori_syndrome_mat) 
+                verti_prediction = verti_matching.decode(verti_syndrome_mat) 
         
-                hboard = self.board ^ hori_prediction #apply correction 
-                vboard = self.board ^ verti_prediction
-                dboard = self.board ^ (hori_prediction * verti_prediction) # only flip bits they agree should be flipped 
+                # take stabs to faces:
+                hori_correction = np.zeros(self.no_bits, dtype=int)
+                verti_correction = np.zeros(self.no_bits, dtype=int)
+                
+                for h in hori_prediction:
+                    hori_correction[hori_parity_rows_to_faces[h]] = 1 
+                
+                for v in verti_prediction:
+                    verti_correction[verti_parity_rows_to_faces[v]] = 1
+        
+        
+                hboard = self.board ^ hori_correction #apply correction 
+                vboard = self.board ^ verti_correction
+                dboard = self.board ^ (hori_correction * verti_correction) # only flip bits they agree should be flipped 
        
                 # test new syndroms 
         
