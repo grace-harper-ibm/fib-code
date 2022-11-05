@@ -1,4 +1,5 @@
 # grug brain 
+# https://www.youtube.com/watch?v=h1cevveAaPs
 import copy
 import datetime
 import logging
@@ -41,9 +42,9 @@ class FibCode():
         if code_bottom_row_start_sequence is None:
             start_arr = [0]*self.L
             start_arr[self.L//2] = 1
-            self.original_code_board = self._generate_init_symmetry(start_arr)
         else:
-            self.original_code_board = self.set_code_word(code_bottom_row_start_sequence)
+            start_arr = code_bottom_row_start_sequence
+        self.original_code_board = self._generate_init_symmetry(start_arr)
         self.original_code_board.shape = self.no_bits
         self.original_errors_board =  self.generate_errors()
         self.board = copy.deepcopy(self.original_errors_board)
@@ -65,7 +66,7 @@ class FibCode():
         logging.info(f" Hy is code {self.Hy}")
 
 
-    def set_code_word(bottom_row_start_sequence):
+    def set_code_word(self, bottom_row_start_sequence):
         raise NotImplementedError("wish you were here...")
     
     def generate_errors(self):
@@ -171,7 +172,7 @@ class FibCode():
     def _generate_init_symmetry(self, start_arr = None):
         # fundamental symmetries start from the top instead of the bottom because numpy
         rect_board = np.zeros((self.L//2, self.L), dtype=int)
-        if not start_arr: 
+        if start_arr is None: 
             start_arr = np.zeros(self.L, dtype=int)
             start_arr[self.L//2] = 1
         rect_board[0] = start_arr
@@ -230,8 +231,6 @@ class FibCode():
                     faces_to_stabs_rows[stab_row] = b
                     
         return parity_mat, faces_to_stabs_rows
-   
-   
    
     def generate_all_possible_error_syndromes(self, parity_check_matrix, no_bits = None):
         
@@ -306,8 +305,7 @@ class FibCode():
         return S 
             
             
-        
-     
+    
     def decode_fib_code(self):
         
         hori_stab_faces = copy.deepcopy(self.fundamental_symmetry)

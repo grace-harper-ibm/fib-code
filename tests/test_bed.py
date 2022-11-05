@@ -142,8 +142,17 @@ class FibCodeTest(unittest.TestCase):
             bad_indices = (equalarr == False).nonzero()[0]
             assert False, f"hello\n  Row {indx} of fcheck is\n {fcheck[indx] }\n but should be \n{crow}\n They fail at\n {bad_indices}"
     
-    
 
+# Those graph libraries tho 
+
+# does this even work as I think? 
+    def test_all_zeros_board(self):
+        L = 32
+        f = FibCode(L, p=0, code_bottom_row_start_sequence = np.zeros(32))
+        f.decode_fib_code()
+        expected_size = ((L**2)//2,)
+        assert f.board.shape == expected_size, f"Board shape is {f.board.shape} instead of {expected_size}"
+        assert (f.board == np.zeros(expected_size)).all(), f"f.board isn't all zeros.. {f.board}."
     
     
     
