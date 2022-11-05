@@ -98,6 +98,61 @@ class FibCodeTest(unittest.TestCase):
         
         assert fcheck.shape == fcheck_sol.shape, f"{ fcheck.shape} but should be {fcheck_sol.shape} "
         assert (fcheck == fcheck_sol).all(), f" {fcheck} should be {fcheck_sol}"
+        
+    
+    size32 = (32**2)//2 
+    f  = FibCode(32)
+    startarr = [0,]*32
+    startarr[((32//2) - 1)] = 1
+    fund_sym = f._generate_init_symmetry(start_arr=startarr)
+    fcheck, _ = f.generate_check_matrix_from_faces(fund_sym)
+    
+    expected_shape =(128, size32)
+    assert fcheck.shape == expected_shape, f"L=32 fcheckmat is shape {fcheck.shape} but should be  {expected_shape}"
+    
+    row0 = np.zeros(size32, dtype= int)
+    row0[14:17] = 1 # 1 on 14, 15, 16 
+    row0[495] = 1 # top one 
+    
+    row3 = np.zeros(size32, dtype= int)
+    row3[47:50] = 1
+    row3[16] = 1 
+    
+    row57 = np.zeros(size32, dtype= int)
+    row57[336:339] = 1
+    row57[305] = 1
+    
+    row107 = np.zeros(size32, dtype= int)   
+    row107[511] = 1 
+    row107[480:482] = 1 # 479, 480, 481
+    row107[448] = 1 
+    
+    row127 = np.zeros(size32, dtype= int)    
+    row127[509:] = 1
+    row127[478] = 1
+    
+    tests = [(0, row0), (3, row3), (57, row57), (107, row107), (127, row127)]
+    
+    for testrow in tests:
+        indx = testrow[0]
+        crow = testrow[1]
+    
+        equalarr = (fcheck[indx] == crow)
+        if not equalarr.all():  # if there exists some False, aka nonmatching pair
+            bad_indices = (equalarr == False).nonzero()[0]
+            assert False, f"hello\n  Row {indx} of fcheck is\n {fcheck[indx] }\n but should be \n{crow}\n They fail at\n {bad_indices}"
+    
+    
+
+    
+    
+    
+    
+    
+    
       
+
+
+
 if __name__ == "__main__":
     unittest.main()

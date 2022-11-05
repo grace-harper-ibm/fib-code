@@ -253,7 +253,7 @@ class FibCode():
             
             # what do it light? 
             lighted = np.matmul(parity_check_matrix, single_error)
-            stabs = np.where(lighted == 1)[0]
+            stabs = (lighted== 1).nonzero()[0]
             
             if len(stabs) != 0:  # TODO only check on bit errors nearish the triangle
                 if len(stabs) != 4 and len(stabs) != 2:
