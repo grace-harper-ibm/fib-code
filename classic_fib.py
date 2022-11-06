@@ -10,7 +10,6 @@ import networkx as nx
 import rustworkx as rx
 
 tt = datetime.datetime.now()
-logging.basicConfig(filename= "logs/" + str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
 import numpy as np
 import pymatching as pm
 import rustworkx as rx
@@ -30,6 +29,8 @@ class FibCode():
     """
     def __init__(self, L=8,p=0.001, decip=1000, code_bottom_row_start_sequence=None, pause=1000):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
+        logging.basicConfig(filename= "logs/" + f'L={L}_' + str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
+        self.logger = logging
         self.L = L # len
         self.no_cols = L
         self.no_rows = L//2 
@@ -38,32 +39,30 @@ class FibCode():
         self.decip = decip
         self.pause = pause
         # fund_sym 
-        
-        if code_bottom_row_start_sequence is None:
-            start_arr = [0]*self.L
-            start_arr[self.L//2] = 1
-        else:
-            start_arr = code_bottom_row_start_sequence
-        self.original_code_board = self._generate_init_symmetry(start_arr)
+         
+        self.original_code_board = self._generate_init_symmetry(code_bottom_row_start_sequence)
         self.original_code_board.shape = self.no_bits
+        
         self.original_errors_board =  self.generate_errors()
         self.board = copy.deepcopy(self.original_errors_board)
         self.fundamental_symmetry = self._generate_init_symmetry()
         self.fundamental_symmetry.shape = (self.L//2, self.L)
         self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_faces = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
-        self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
+        #self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
         
-        logging.info(f" original code baord is  {self.original_code_board}")
-        logging.info(f" original_errors_board is  {self.original_errors_board}")
-        logging.info(f" error board is code {self.board}")
-        logging.info(f" initial symmetry is: {self.fundamental_symmetry}")
-        logging.info(f"fundamental_stabilizer_parity_check_matrix is : {self.fundamental_stabilizer_parity_check_matrix}")
-        logging.info(f"fundamental_single_error_syndromes is : {self.fundamental_single_error_syndromes}")
-        logging.info(f" Hx {self.Hx}")
-        logging.info(f" Hy is code {self.Hy}")
+        
+        self.logger.info(f" original code baord is  {self.original_code_board}")
+    
+        self.logger.info(f" original_errors_board is  {self.original_errors_board}")
+        self.logger.info(f" error board is code {self.board}")
+        self.logger.info(f" initial symmetry is: {self.fundamental_symmetry}")
+        self.logger.info(f"fundamental_stabilizer_parity_check_matrix is : {self.fundamental_stabilizer_parity_check_matrix}")
+        #self.logger.info(f"fundamental_single_error_syndromes is : {self.fundamental_single_error_syndromes}")
+        self.logger.info(f" Hx {self.Hx}")
+        self.logger.info(f" Hy is code {self.Hy}")
 
 
     def set_code_word(self, bottom_row_start_sequence):
@@ -73,7 +72,7 @@ class FibCode():
         board = copy.deepcopy(self.original_code_board)
         cutoff = self.p*self.decip
         for i in range(self.no_bits):
-            if random.randrange(0, self.decip) <= cutoff:
+            if random.randrange(1, self.decip + 1) <= cutoff:
                 board[i] ^= 1
         return board 
                 
@@ -174,7 +173,7 @@ class FibCode():
         rect_board = np.zeros((self.L//2, self.L), dtype=int)
         if start_arr is None: 
             start_arr = np.zeros(self.L, dtype=int)
-            start_arr[self.L//2] = 1
+            start_arr[(self.L//2) - 1] = 1
         rect_board[0] = start_arr
         for row in range(1, self.L//2):
             for bit in range(self.L):
@@ -205,6 +204,10 @@ class FibCode():
         return sol
         
     def generate_check_matrix_from_faces(self, stab_faces):
+        """
+        STABS:           xxx
+                                  x 
+        """
         # TODO slow because of all the shape changing 
         """REQUIRES L//2 x L """
         # AHHHH 
@@ -221,7 +224,7 @@ class FibCode():
                     a = self.rc_to_bit(row, col)
                     b = self.rc_to_bit((row)% self.no_rows, (col - 1)%self.no_cols)
                     c = self.rc_to_bit((row)% self.no_rows, (col + 1 )%self.no_cols)
-                    d = self.rc_to_bit((row - 1)% self.no_rows, col %self.no_cols)
+                    d = self.rc_to_bit((row + 1)% self.no_rows, col %self.no_cols) # changed to point the other direction
                     new_stab = np.array([0] * self.no_bits)
                     new_stab[a] = 1
                     new_stab[b] = 1
@@ -242,7 +245,7 @@ class FibCode():
         
         for b in range(no_bits):
             if no_bits > 10 and b % (no_bits//10) == 0:
-                logging.info(f"on bit: {b} and error set looks like: {error_pairs}")
+                self.logger.info(f"on bit: {b} and error set looks like: {error_pairs}")
             # clear prev_bit 
             prev_bit = (b - 1) % no_bits
             single_error[prev_bit] = 0 
@@ -251,13 +254,13 @@ class FibCode():
             single_error[b] = 1
             
             # what do it light? 
-            lighted = np.matmul(parity_check_matrix, single_error)
+            lighted = self._calc_syndrome(parity_check_matrix, single_error)
             stabs = (lighted== 1).nonzero()[0]
             
             if len(stabs) != 0:  # TODO only check on bit errors nearish the triangle
                 if len(stabs) != 4 and len(stabs) != 2:
-                    emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs}"
-                    logging.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
+                    emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs} for lighted: {lighted}"
+                    self.logger.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
                     raise Exception(emsg)
             
                 s0 = stabs[0]
@@ -265,7 +268,7 @@ class FibCode():
                 error_pairs.add((s0, s1, b,))
             
                 if len(stabs) == 4:
-                    logging.info(f" a bit error in {b} in fundamental symmetry caused a 4 stab error: {stabs} errors")
+                    self.logger.info(f" a bit error in {b} in fundamental symmetry caused a 4 stab error: {stabs} errors")
                     s2 = stabs[2]
                     s3 = stabs[3]
                     error_pairs.add((s2, s3, b,))
@@ -329,8 +332,8 @@ class FibCode():
                 round_count += 1
                 if self.no_bits > 10:
                     if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
-                        logging.info(f" currently on round: {round_count}")
-                        logging.info(f"current board is {self.board}")
+                        self.logger.info(f" currently on round: {round_count}")
+                        self.logger.info(f"current board is {self.board}")
                         
                 # TODO consider csc_matrix? are the gains even worth it? 
                 hori_stab_faces = self.shift_by_x(hori_stab_faces)
@@ -366,6 +369,9 @@ class FibCode():
  
                 hori_prediction = hori_matching.decode(hori_syndrome_mat) 
                 verti_prediction = verti_matching.decode(verti_syndrome_mat) 
+                
+                self.logger.info(f"HORI: check matrix\n {hori_check_matrix}\n  syndrome:\n {hori_syndrome_mat}")
+                self.logger.info(f"VERTI: check matrix\n {verti_check_matrix}\n  syndrome:\n {verti_syndrome_mat}")
         
                 # take stabs to faces:
                 hori_correction = np.zeros(self.no_bits, dtype=int)
@@ -392,7 +398,7 @@ class FibCode():
         
                 winner = min(opts, key=lambda x: x[0])
                 self.board = winner[1]         # update board to best one 
-                logging.info(f"initial correction correction information: f{winner}")
+                self.logger.info(f"initial correction correction information: f{winner}")
                 
                 if (winner[0] == 0):
                     return "yay!!"
