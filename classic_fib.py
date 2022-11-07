@@ -258,6 +258,11 @@ class FibCode():
             lighted = self._calc_syndrome(parity_check_matrix, single_error)
             stabs = (lighted== 1).nonzero()[0]
             
+            # if len(stabs) == 1:
+            #     s0 = stabs[0]
+            #     error_pairs.add((s0, self., b))
+                
+            
             if len(stabs) == 2:
                 s0 = stabs[0]
                 s1 = stabs[1]
@@ -303,7 +308,7 @@ class FibCode():
         if no_stabs is None:
             no_stabs = len(self.fundamental_stabilizer_parity_check_matrix) # rows of parity check matrix 
         S = rx.PyGraph()
-        for i in range(no_stabs):
+        for i in range(no_stabs): # +1 is boundary node
             S.add_node(i)
         # copied James Wootton's code, a true hero. 
         for n0, n1, e in error_graphs:

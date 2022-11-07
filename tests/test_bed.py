@@ -154,7 +154,10 @@ class FibCodeTest(unittest.TestCase):
         assert f.board.shape == expected_size, f"Board shape is {f.board.shape} instead of {expected_size}"
         assert (f.board == np.zeros(expected_size)).all(), f"f.board isn't all zeros.. {f.board}."
     
-    
+    def test_decoding_finishes(self):
+        L = 8
+        f = FibCode(L, p=0.05)
+        f.decode_fib_code
     
     
     
