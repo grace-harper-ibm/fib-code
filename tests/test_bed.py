@@ -157,7 +157,7 @@ class FibCodeTest(unittest.TestCase):
     def test_decoding_finishes(self):
         L = 8
         f = FibCode(L, p=0.05)
-        f.decode_fib_code
+        f.decode_fib_code()
     
     
     
