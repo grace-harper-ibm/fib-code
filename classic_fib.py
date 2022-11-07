@@ -49,7 +49,7 @@ class FibCode():
         self.fundamental_symmetry.shape = (self.L//2, self.L)
         self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_faces = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
-        self.fundamental_single_error_syndromes, self.error_singles_syndrome = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
+        self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
         
@@ -245,7 +245,6 @@ class FibCode():
     
         # use only bits inside the grey triangle? # TODO only check bits INSIDE the grey triangle AND 2 special edges 
         for b in range(no_bits): # TODO only check on bit errors nearish the triangle
-            error_single = {}
             if no_bits > 10 and b % (no_bits//10) == 0:
                 self.logger.info(f"on bit: {b} and error set looks like: {error_pairs}")
             # clear prev_bit 
@@ -280,7 +279,7 @@ class FibCode():
                     
             
 
-        return error_pairs, error_single
+        return error_pairs
 
 
 
@@ -295,9 +294,9 @@ class FibCode():
         return nx_graph
 
     def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
-        all_possible_errors, error_singles = self.generate_all_possible_error_syndromes(parity_check_matrix, board_size)
+        all_possible_errors = self.generate_all_possible_error_syndromes(parity_check_matrix, board_size)
         matching_graph =  self.error_pairs2graph(all_possible_errors)
-        return matching_graph, error_singles
+        return matching_graph
     
     def error_pairs2graph(self, error_graphs, no_stabs=None):
         """Make sure a stab node has the same index as it's value"""
@@ -352,8 +351,8 @@ class FibCode():
                 hori_check_matrix, hori_parity_rows_to_faces  = self.generate_check_matrix_from_faces(hori_stab_faces_rect)  # TODO make a special +y/x for check mats
                 verti_check_matrix, verti_parity_rows_to_faces = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
 
-                hori_matching_graph, hori_error_singles = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
-                verti_matching_graph, hori_error_singles =  self.ret2net(self.generate_error_syndrome_graph(verti_check_matrix, self.no_bits))
+                hori_matching_graph = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
+                verti_matching_graph =  self.ret2net(self.generate_error_syndrome_graph(verti_check_matrix, self.no_bits))
     
                 hori_matching = pm.Matching(hori_matching_graph) # TODO add weights 
                 verti_matching = pm.Matching(verti_matching_graph) # TODO add weights 
