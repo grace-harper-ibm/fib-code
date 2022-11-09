@@ -39,8 +39,7 @@ class FibCode():
         self.decip = decip
         self.pause = pause
         # fund_sym 
-         
-        self.original_code_board = np.zeros(self.no_bits)
+        self.original_code_board = np.zeros(self.no_bits, dtype=int)
         if error_board_override is not None:
             if p > 0:
                 raise Exception("To use error_board_override, p must equal 0")
