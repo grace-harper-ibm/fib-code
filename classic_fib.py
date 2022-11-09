@@ -198,6 +198,7 @@ class FibCode():
     
         
     def shift_by_x(self, bitarr, power=1): # fuck makes everything a float 
+        # shifts by x + 1 aka right 
         power = power % self.L
         Hx = np.linalg.matrix_power(self.Hx, power)
         sol =  np.matmul(Hx, bitarr)
@@ -334,8 +335,8 @@ class FibCode():
         verti_stab_faces.shape = (self.L**2)//2 # how bad is this 
         
         # center them on same bit, unnecessary, we don't even start on the first bit # TODO (do this work?)
-        hori_stab_faces = self.shift_by_y(hori_stab_faces)
-        verti_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces), self.L//2)
+        hori_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces),  power=(-self.L//2) + 1)
+        verti_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces))
         
         round_count = 0
 
@@ -343,8 +344,6 @@ class FibCode():
             hori_stab_faces = self.shift_by_y(hori_stab_faces)
             verti_stab_faces = self.shift_by_y(verti_stab_faces)
             for _ in range(self.L):
-                if round_count > self.pause:
-                    return 
                 round_count += 1
                 if self.no_bits > 10:
                     if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
