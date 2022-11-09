@@ -27,7 +27,7 @@ class FibCode():
      L 
      0 1 2 3 ....                                L - 1]
     """
-    def __init__(self, L=8,p=0.001, decip=1000, code_bottom_row_start_sequence=None, pause=1000):
+    def __init__(self, L=8,p=0.001, decip=1000, code_bottom_row_start_sequence=None, pause=1000, error_board_override=None):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
         logging.basicConfig(filename= "logs/" + f'L={L}_' + str(tt)+'fibcode_probs.log', encoding='utf-8', level=logging.INFO)
         self.logger = logging
@@ -40,10 +40,13 @@ class FibCode():
         self.pause = pause
         # fund_sym 
          
-        self.original_code_board = self._generate_init_symmetry(code_bottom_row_start_sequence)
-        self.original_code_board.shape = self.no_bits
-        
-        self.original_errors_board =  self.generate_errors()
+        self.original_code_board = np.zeros(self.no_bits)
+        if error_board_override is not None:
+            if p > 0:
+                raise Exception("To use error_board_override, p must equal 0")
+            self.original_errors_board = error_board_override
+        else:
+            self.original_errors_board =  self.generate_errors()
         self.board = copy.deepcopy(self.original_errors_board)
         self.fundamental_symmetry = self._generate_init_symmetry()
         self.fundamental_symmetry.shape = (self.L//2, self.L)
@@ -180,6 +183,20 @@ class FibCode():
                 new_val =  rect_board[row - 1][(bit - 1)%self.L] ^  rect_board[row - 1][(bit )%self.L] ^  rect_board[row - 1][(bit + 1)%self.L]
                 rect_board[row][bit] = new_val
         return rect_board
+    
+    def _generate_init_code_word(self, start_arr = None):
+        # fundamental symmetries start from the top instead of the bottom because numpy
+        rect_board = np.zeros((self.L//2, self.L), dtype=int)
+        if start_arr is None: 
+            start_arr = np.zeros(self.L, dtype=int)
+            start_arr[(self.L//2) - 1] = 1
+        rect_board[(self.L//2) - 1] = start_arr
+        for row in range( self.L//2, 1, -1):
+            for bit in range(self.L):
+                new_val =  rect_board[row + 1][(bit - 1)%self.L] ^  rect_board[row + 1][(bit )%self.L] ^  rect_board[row + 1][(bit + 1)%self.L]
+                rect_board[row][bit] = new_val
+        return rect_board 
+    
         
     def shift_by_x(self, bitarr, power=1): # fuck makes everything a float 
         power = power % self.L
@@ -206,7 +223,7 @@ class FibCode():
     def generate_check_matrix_from_faces(self, stab_faces):
         """
         STABS:           xxx
-                                  x 
+                                  
         """
         # TODO slow because of all the shape changing 
         """REQUIRES L//2 x L """
@@ -224,7 +241,7 @@ class FibCode():
                     a = self.rc_to_bit(row, col)
                     b = self.rc_to_bit((row)% self.no_rows, (col - 1)%self.no_cols)
                     c = self.rc_to_bit((row)% self.no_rows, (col + 1 )%self.no_cols)
-                    d = self.rc_to_bit((row + 1)% self.no_rows, col %self.no_cols) # changed to point the other direction
+                    d = self.rc_to_bit((row - 1)% self.no_rows, col %self.no_cols) # changed to point the other direction
                     new_stab = np.array([0] * self.no_bits)
                     new_stab[a] = 1
                     new_stab[b] = 1
@@ -258,29 +275,19 @@ class FibCode():
             lighted = self._calc_syndrome(parity_check_matrix, single_error)
             stabs = (lighted== 1).nonzero()[0]
             
-            # if len(stabs) == 1:
-            #     s0 = stabs[0]
-            #     error_pairs.add((s0, self., b))
-                
             
-            if len(stabs) == 2:
-                s0 = stabs[0]
-                s1 = stabs[1]
-                error_pairs.add((s0, s1, b,))
+            if  len(stabs) %2 !=0:
+                emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs} for lighted: {lighted}"
+                self.logger.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
+                raise Exception(emsg)
             
-                # if len(stabs) == 4:
-                #     self.logger.info(f" a bit error in {b} in fundamental symmetry caused a 4 stab error: {stabs} errors")
-                #     s2 = stabs[2]
-                #     s3 = stabs[3]
-                #     error_pairs.add((s2, s3, b,))
-                # if len(stabs) != 4 and len(stabs) != 2 and len(stabs) != 1:
-                #     emsg = f"Minor panic. Error on  bit {b} causes a BAD syndrome: {stabs} for lighted: {lighted}"
-                #     self.logger.error(emsg) # TODO just do this via inspection on 1s per column in stab parity check matrix 
-                #     raise Exception(emsg)
-                
-                # if len(stabs) == 1:
-                #     error_single[b] = stabs[0]
-                # else:
+            if len(stabs) > 0:
+                for indx in range(0,len(stabs), 2): 
+                    s0 = stabs[indx]
+                    s1 = stabs[indx + 1]
+                    error_pairs.add((s0, s1, b,))
+            
+
                     
             
 
@@ -358,6 +365,7 @@ class FibCode():
 
                 hori_matching_graph = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
                 verti_matching_graph =  self.ret2net(self.generate_error_syndrome_graph(verti_check_matrix, self.no_bits))
+                
     
                 hori_matching = pm.Matching(hori_matching_graph) # TODO add weights 
                 verti_matching = pm.Matching(verti_matching_graph) # TODO add weights 
