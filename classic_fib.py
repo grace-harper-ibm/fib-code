@@ -54,7 +54,7 @@ class FibCode():
         self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
-        
+            
         
         self.logger.info(f" original code baord is  {self.original_code_board}")
     
@@ -286,23 +286,20 @@ class FibCode():
                     s0 = stabs[indx]
                     s1 = stabs[indx + 1]
                     error_pairs.add((s0, s1, b,))
-            
-
-                    
-            
-
+        
         return error_pairs
 
 
 
     def ret2net(self, graph: rx.PyGraph): # stolen from Wootton 
         """Convert rustworkx graph to equivalent networkx graph."""
-        nx_graph = nx.Graph()
+        nx_graph = nx.MultiGraph() 
         for j, stabid in enumerate(graph.nodes()):
             nx_graph.add_node(j)
             nx.set_node_attributes(nx_graph, {j: stabid}, str(stabid))
         for j, (n0, n1) in enumerate(graph.edge_list()):
-            nx_graph.add_edge(n0, n1)
+            print(j)
+            nx_graph.add_edge(n0, n1, fault_id=j)
         return nx_graph
 
     def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
