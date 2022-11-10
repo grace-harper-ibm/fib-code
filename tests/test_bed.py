@@ -94,6 +94,7 @@ class FibCodeTest(unittest.TestCase):
         startarr = [0,]*4
         startarr[(4//2) - 1] = 1
         fund_sym = f._generate_init_symmetry(start_arr=startarr)
+        fund_sym.shape = (f.L//2, f.L)
         fcheck, _ = f.generate_check_matrix_from_faces(fund_sym)
         
         assert fcheck.shape == fcheck_sol.shape, f"{ fcheck.shape} but should be {fcheck_sol.shape} "
@@ -105,6 +106,7 @@ class FibCodeTest(unittest.TestCase):
         startarr = [0,]*32
         startarr[((32//2) - 1)] = 1
         fund_sym = f._generate_init_symmetry(start_arr=startarr)
+        fund_sym.shape = (f.L//2, f.L)
         fcheck, _ = f.generate_check_matrix_from_faces(fund_sym)
     
         expected_shape =(128, size32)
@@ -112,24 +114,24 @@ class FibCodeTest(unittest.TestCase):
     
         row0 = np.zeros(size32, dtype= int)
         row0[14:17] = 1 # 1 on 14, 15, 16 
-        row0[47] = 1 # top one 
+        row0[495] = 1 # top one 
     
         row3 = np.zeros(size32, dtype= int)
         row3[47:50] = 1
-        row3[80] = 1 
+        row3[16] = 1 
     
         row57 = np.zeros(size32, dtype= int)
         row57[336:339] = 1
-        row57[369] = 1
+        row57[305] = 1
     
         row107 = np.zeros(size32, dtype= int)   
         row107[511] = 1 
         row107[480:482] = 1 # 479, 480, 481
-        row107[0] = 1 
+        row107[448] = 1 
     
         row127 = np.zeros(size32, dtype= int)    
         row127[509:] = 1
-        row127[30] = 1
+        row127[478] = 1
     
         tests = [(0, row0), (3, row3), (57, row57), (107, row107), (127, row127)]
     

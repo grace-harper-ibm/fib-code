@@ -54,7 +54,10 @@ class FibCode():
         self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
-            
+        
+        self.all_stab_faces = np.ones((self.L//2, L), dtype=int)
+        self.all_stabs_check_mat, self.all_stabs_parity_rows_to_faces = self.generate_check_matrix_from_faces(self.all_stab_faces)
+
         
         self.logger.info(f" original code baord is  {self.original_code_board}")
     
@@ -298,7 +301,6 @@ class FibCode():
             nx_graph.add_node(j)
             nx.set_node_attributes(nx_graph, {j: stabid}, str(stabid))
         for j, (n0, n1) in enumerate(graph.edge_list()):
-            print(j)
             nx_graph.add_edge(n0, n1, fault_id=j)
         return nx_graph
 
@@ -403,9 +405,9 @@ class FibCode():
        
                 # test new syndroms 
         
-                hcorsynd  = [(self._calc_syndrome(hori_check_matrix, hboard)== 1).sum(), hboard, "hori"]
-                vcorsynd  = [(self._calc_syndrome(hori_check_matrix, vboard)== 1).sum(), vboard, "verti"]
-                dcorsynd  = [(self._calc_syndrome(hori_check_matrix, dboard)== 1).sum(), dboard, "dcor"]
+                hcorsynd  = [(self._calc_syndrome(self.all_stabs_check_mat, hboard)== 1).sum(), hboard, "hori"]
+                vcorsynd  = [(self._calc_syndrome(self.all_stabs_check_mat, vboard)== 1).sum(), vboard, "verti"]
+                dcorsynd  = [(self._calc_syndrome(self.all_stabs_check_mat, dboard)== 1).sum(), dboard, "dcor"]
         
                 opts = [hcorsynd, vcorsynd, dcorsynd]
         
