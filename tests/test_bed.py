@@ -228,27 +228,27 @@ class FibCodeTest(unittest.TestCase):
 
         # make sure matching goes to right nodes
 
-    # does this even work as I think?
-    def test_all_zeros_board(self):
-        L = 32
-        f = FibCode(L, p=0, code_bottom_row_start_sequence=np.zeros(32))
-        f.decode_fib_code()
-        expected_size = ((L**2) // 2,)
-        assert (
-            f.board.shape == expected_size
-        ), f"Board shape is {f.board.shape} instead of {expected_size}"
-        assert (
-            f.board == np.zeros(expected_size)
-        ).all(), f"f.board isn't all zeros.. {f.board}."
+    # # does this even work as I think?
+    # def test_all_zeros_board(self):
+    #     L = 32
+    #     f = FibCode(L, p=0, code_bottom_row_start_sequence=np.zeros(32))
+    #     f.decode_fib_code()
+    #     expected_size = ((L**2) // 2,)
+    #     assert (
+    #         f.board.shape == expected_size
+    #     ), f"Board shape is {f.board.shape} instead of {expected_size}"
+    #     assert (
+    #         f.board == np.zeros(expected_size)
+    #     ).all(), f"f.board isn't all zeros.. {f.board}."
 
-    def test_decoding_finishes(self):
-        L = 8
-        f = FibCode(L, p=0.05)
-        f.decode_fib_code()
+    # def test_decoding_finishes(self):
+    #     L = 8
+    #     f = FibCode(L, p=0.05)
+    #     f.decode_fib_code()
         
         
-    def test_generate_error_pairs(self):
-        f = FibCode(8)
+    # def test_generate_error_pairs(self):
+    #     f = FibCode(8)
         
             
         

@@ -188,7 +188,8 @@ class FibCode:
         H = np.zeros((self.no_bits, self.no_bits), dtype=int)
         for b in range(self.no_bits):
             # H[new_bit][old_bit]
-            new_bit = ((b + 1) % self.L) + ((b // self.L) * (self.L))
+            new_bit = self.shift_by_x_scalar(b)
+            #new_bit = ((b + 1) % self.L) + ((b // self.L) * (self.L))
             H[new_bit][b] = 1
         return H
 
@@ -197,7 +198,8 @@ class FibCode:
         H = np.zeros((self.no_bits, self.no_bits), dtype=int)
 
         for b in range(self.no_bits):
-            new_bit = (b + self.L) % self.no_bits
+            new_bit = self.shift_by_y_scalar(b)
+            #new_bit = (b + self.L) % self.no_bits
             H[new_bit][b] = 1
         return H
 
@@ -224,7 +226,6 @@ class FibCode:
         if start_arr is None:
             start_arr = np.zeros(self.L, dtype=int)
             start_arr[(self.L // 2) - 1] = 1
-        rect_board[(self.L // 2) - 1] = start_arr
         for row in range(self.L // 2, 1, -1):
             for bit in range(self.L):
                 new_val = (
@@ -249,6 +250,16 @@ class FibCode:
         sol = np.matmul(Hy, bitarr)
         sol = sol.astype(int)
         return sol
+   
+    def shift_by_y_scalar(self, bit):
+        new_bit = (bit + self.L) % self.no_bits
+        return new_bit
+    
+    def shift_by_x_scalar(self, bit):
+        new_bit = ((bit + 1) % self.L) + ((bit // self.L) * (self.L))
+        return new_bit
+        
+    
 
     def _calc_syndrome(self, check_matr, board=None):
         if board is None:
