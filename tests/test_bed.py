@@ -58,6 +58,26 @@ class FibCodeTest(unittest.TestCase):
                 assert (ans == sol).all(), f"for {s} the result: {ans} is not {sol}"            
                 assert ans.shape == sol.shape, f"for ans shape: {s.shape}  is not {sol.shape} on {s}"
         
+    def test_x_shift_multi(self):
+        L = 8
+        f = FibCode(L)
+        several_valued = np.arange(0, (L**2)//2)
+        
+        sol =  np.arange(0, (L**2)//2)
+        sol.shape = (L//2, L)
+        for row in sol:
+            prev = row[0]
+            for c in range(1, len(row)):
+                tmp = row[c]
+                row[c] = prev 
+                prev = tmp 
+            row[0] = prev 
+                
+                
+        sol.shape = (L**2)//2
+        ans = f.shift_by_x(several_valued)
+        assert (ans == sol).all(), f"The result: {ans} is not the expected: {sol}"            
+        assert ans.shape == sol.shape, f"The result's shape: {ans.shape}  is not the expected shape: {sol.shape}"        
       
     def test_y_shift(self):
         for L in [4, 8, 16, 32]:
@@ -83,7 +103,21 @@ class FibCodeTest(unittest.TestCase):
                 assert (ans == sol).all(), f"for {s} the ans: {ans} was not {sol} "
                 assert ans.shape == sol.shape, f" for {s} the ans shape: {ans.shape} did not match the sol shape: {sol.shape}"
         
-      
+    def test_y_shift_multi(self):
+        L = 8
+        f = FibCode(L)
+        several_valued = np.arange(0, (L**2)//2)
+        sol =  np.arange(0, ((L**2)//2) - L)
+        new_top_row = np.arange(((L**2)//2) - L, (L**2)//2)
+        sol =np.concatenate((new_top_row, sol),axis=0)
+        
+        ans = f.shift_by_y(several_valued)
+        assert (ans == sol).all(), f"The result: {ans} is not the expected: {sol}"            
+        assert ans.shape == sol.shape, f"The result's shape: {ans.shape}  is not the expected shape: {sol.shape}"       
+         
+        
+        
+        
     def test_gen_stabs(self):
         fcheck_sol = np.array([
         [1, 1, 1, 0, 0, 1, 0, 0],
@@ -143,9 +177,24 @@ class FibCodeTest(unittest.TestCase):
             if not equalarr.all():  # if there exists some False, aka nonmatching pair
                 bad_indices = (equalarr == False).nonzero()[0]
                 assert False, f"hello\n  Row {indx} of fcheck is\n {fcheck[indx] }\n but should be \n{crow}\n They fail at\n {bad_indices}"
+   
+   
     
 
 # Those graph libraries tho 
+
+    def test_node_indexing_graph(self):
+        pass
+        # create a board 
+        
+        # take subnodes of that board and add them to a graph 
+        
+        # how does pymatching determine what indices go to what nodes? 
+        
+        # get back matching 
+        
+        # make sure matching goes to right nodes 
+        
 
 # does this even work as I think? 
     def test_all_zeros_board(self):

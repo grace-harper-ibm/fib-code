@@ -1,5 +1,6 @@
 # grug brain 
 # https://www.youtube.com/watch?v=h1cevveAaPs
+# https://www.youtube.com/watch?v=rZjpsT7VgNU
 import copy
 import datetime
 import logging
@@ -200,14 +201,15 @@ class FibCode():
         return rect_board 
     
         
-    def shift_by_x(self, bitarr, power=1): # fuck makes everything a float 
+    def shift_by_x(self, bitarr, power=1): 
         # shifts by x + 1 aka right 
         power = power % self.L
         Hx = np.linalg.matrix_power(self.Hx, power)
         sol =  np.matmul(Hx, bitarr)
         sol = sol.astype(int)
         return sol
-    def shift_by_y(self, bitarr, power=1): # fuck makes everything a float 
+    
+    def shift_by_y(self, bitarr, power=1): 
         power = power % (self.L//2)
         Hy = np.linalg.matrix_power(self.Hy, power)
         sol =  np.matmul(Hy, bitarr)
