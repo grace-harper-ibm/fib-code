@@ -259,25 +259,37 @@ class FibCode():
         return parity_mat, faces_to_stabs_rows
    
     def generate_all_possible_error_syndromes(self, parity_check_matrix, no_bits = None):
+        def map_and_update(face, staberr_id_count):
+            if face not in board2staberr:
+                staberr_face = staberr_id_count
+                board2staberr[face] = staberr_face
+                staberr2board[staberr_face] = face 
+                staberr_id_count += 1 
+            return board2staberr[face], staberr_id_count 
         
         # "there's gotta be a smarter way to do this "
         if no_bits is None:
             no_bits = self.no_bits
         error_pairs = set() # (stab_face1, stab_face2, errorbit)
         single_error = np.zeros(no_bits, dtype=int)
+        
+        staberr2board = {}
+        board2staberr = {}
+        staberr_id_count = 0 # if we start with a parity check for a symmetry not the fundamental symmetry, the labellings with be a bit wonky
+        
     
-        # use only bits inside the grey triangle? # TODO only check bits INSIDE the grey triangle AND 2 special edges 
-        for b in range(no_bits): # TODO only check on bit errors nearish the triangle
+        for b in range(no_bits):
             if no_bits > 10 and b % (no_bits//10) == 0:
                 self.logger.info(f"on bit: {b} and error set looks like: {error_pairs}")
+        
+            ## set up new single error 
             # clear prev_bit 
             prev_bit = (b - 1) % no_bits
             single_error[prev_bit] = 0 
-            
             # set new error 
             single_error[b] = 1
             
-            # what do it light? 
+            ## what do it light? 
             lighted = self._calc_syndrome(parity_check_matrix, single_error)
             stabs = (lighted== 1).nonzero()[0]
             
@@ -288,12 +300,18 @@ class FibCode():
                 raise Exception(emsg)
             
             if len(stabs) > 0:
-                for indx in range(0,len(stabs), 2): 
-                    s0 = stabs[indx]
-                    s1 = stabs[indx + 1]
-                    error_pairs.add((s0, s1, b,))
+                for indx in range(0,len(stabs), 2):                     
+                    bindx_stab0 = stabs[indx]
+                    bindx_stab1 = stabs[indx + 1]
+                    
+                    staberr_s0, staberr_id_count = map_and_update(bindx_stab0, staberr_id_count)
+                    staberr_s1, staberr_id_count = map_and_update(bindx_stab1, staberr_id_count)
+                    staberr_ebit, staberr_id_count = map_and_update(b, staberr_id_count)
+                        
+                    
+                    error_pairs.add((staberr_s0, staberr_s1, staberr_ebit))
         
-        return error_pairs
+        return error_pairs, board2staberr, staberr2board
 
 
 
@@ -313,22 +331,31 @@ class FibCode():
         return matching_graph
     
     def error_pairs2graph(self, error_graphs, no_stabs=None):
-        """Make sure a stab node has the same index as it's value"""
         if no_stabs is None:
             no_stabs = len(self.fundamental_stabilizer_parity_check_matrix) # rows of parity check matrix 
-        S = rx.PyGraph()
-        for i in range(no_stabs): # +1 is boundary node
-            S.add_node(i)
-        # copied James Wootton's code, a true hero. 
-        for n0, n1, e in error_graphs:
-            j = S.nodes().index(n0) 
-            k = S.nodes().index(n1) 
-            S.add_edge(j, k, str(e))
-        return S 
+        staberr2node = {}
+        node2staberr = {} 
+        graph = rx.PyGraph()
+        
+        # for in range(no_stabs):
+        #     graph.add(i)
+        # for i in range(no_stabs): # +1 is boundary node
+        #     S.add_node(i)
+        # # copied James Wootton's code, a true hero. 
+        # for n0, n1, e in error_graphs:
+        #     j = S.nodes().index(n0) 
+        #     k = S.nodes().index(n1) 
+        #     S.add_edge(j, k, str(e))
+        # return S 
             
             
     
     def decode_fib_code(self):
+        # generate graphs and mappings
+        
+        # center everything on b 
+        
+        # for b in bits 
         
         hori_stab_faces = copy.deepcopy(self.fundamental_symmetry)
         verti_stab_faces = copy.deepcopy(self.fundamental_symmetry)
@@ -336,9 +363,41 @@ class FibCode():
         hori_stab_faces.shape = (self.L**2)//2 # how bad is this 
         verti_stab_faces.shape = (self.L**2)//2 # how bad is this 
         
-        # center them on same bit, unnecessary, we don't even start on the first bit # TODO (do this work?)
+        hori_parity = self.generate_check_matrix_from_faces(hori_stab_faces)
+        verti_parity  = self.generate_check_matrix_from_faces(verti_stab_faces)
+        
+        # generate graph and board2graph mappings 
+        hori_graph_error_pairs, hori_board2staberr, hori_staberr2board = self.generate_all_possible_error_syndromes(hori_parity) # TODO test this
+        verti_graph_error_pairs, verti_board2staberr, verti_staberr2board = self.generate_all_possible_error_syndromes(verti_parity) # TODO test this
+        
+        hori_matching_graph =  self.error_pairs2graph(hori_graph_error_pairs)
+       
+        
+        
+        
+        
+        
+        # Now, center things on zero
         hori_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces),  power=(-self.L//2) + 1)
         verti_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces))
+        
+        for row in range(len(hori_parity)):
+            hori_parity[row] =self.shift_by_x(self.shift_by_y(hori_parity[row] ),  power=(-self.L//2) + 1)    
+        
+        for row in range(len(verti_parity)):
+            verti_parity[row] =self.shift_by_x(self.shift_by_y( verti_parity[row] ))  #0th entry here should correspond to midpoint of bottom triangle and should be on 0th bit 
+        
+        # TODO center special bit
+        # TODO center staberror2board
+        # TODO center board2staberror
+        
+        
+        
+        
+        
+        
+        
+    
         
         round_count = 0
 
