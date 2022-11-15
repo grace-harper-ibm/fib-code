@@ -11,6 +11,8 @@ import networkx as nx
 import rustworkx as rx
 from this import d
 
+from decoder_graph import DecoderGraph
+
 tt = datetime.datetime.now()
 import numpy as np
 import pymatching as pm
@@ -53,6 +55,8 @@ class FibCode():
         self.fundamental_symmetry.shape = (self.L//2, self.L)
         self.fundamental_stabilizer_parity_check_matrix, self.fundamental_parity_rows_to_faces = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
+        self.fundamental_hori_probe_indx = self.no_bits - 1 
+        self.fundamental_verti_probe_indx = ((self.L//2) - 1)//2
         self.fundamental_single_error_syndromes = self.generate_all_possible_error_syndromes(self.fundamental_stabilizer_parity_check_matrix)
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
@@ -227,9 +231,8 @@ class FibCode():
         return sol
         
     def generate_check_matrix_from_faces(self, stab_faces):
-        """
-        STABS:           xxx
-                                  
+        """                     x
+        STABS:           xxx     
         """
         # TODO slow because of all the shape changing 
         """REQUIRES L//2 x L """
@@ -331,11 +334,28 @@ class FibCode():
         return matching_graph
     
     def error_pairs2graph(self, error_graphs, no_stabs=None):
+        def add_to_graph(staberr_id):
+            if staberr_id not in staberr2node:
+                graph_node_id = graph.add_node({"element":staberr_id})
+                staberr2node[staberr_id] = graph_node_id
+                node2staberr[graph_node_id] = staberr_id
+            return graph_node_id
+                
         if no_stabs is None:
             no_stabs = len(self.fundamental_stabilizer_parity_check_matrix) # rows of parity check matrix 
         staberr2node = {}
         node2staberr = {} 
         graph = rx.PyGraph()
+        
+        # add elements so doesn't yell, "node" isn't required party of dictionary
+        for staberr_n0, staberr_n1, staberr_e in error_graphs:
+            graph_node_n0 = add_to_graph(staberr_n0)
+            graph_node_n1 = add_to_graph(staberr_n1)
+            graph.add_edge(graph_node_n0, graph_node_n1, {"fault_ids":{staberr_e}})
+        
+        return graph, staberr2node, node2staberr
+        
+                
         
         # for in range(no_stabs):
         #     graph.add(i)
@@ -360,6 +380,9 @@ class FibCode():
         hori_stab_faces = copy.deepcopy(self.fundamental_symmetry)
         verti_stab_faces = copy.deepcopy(self.fundamental_symmetry)
         
+        hori_board_prob_indx = self.fundamental_hori_probe_indx 
+        verti_board_prob_indx = self.fundamental_verti_probe_indx
+        
         hori_stab_faces.shape = (self.L**2)//2 # how bad is this 
         verti_stab_faces.shape = (self.L**2)//2 # how bad is this 
         
@@ -370,12 +393,14 @@ class FibCode():
         hori_graph_error_pairs, hori_board2staberr, hori_staberr2board = self.generate_all_possible_error_syndromes(hori_parity) # TODO test this
         verti_graph_error_pairs, verti_board2staberr, verti_staberr2board = self.generate_all_possible_error_syndromes(verti_parity) # TODO test this
         
-        hori_matching_graph =  self.error_pairs2graph(hori_graph_error_pairs)
-       
+        hori_matching_graph, hori_staberr2node, hori_node2staberr =  self.error_pairs2graph(hori_graph_error_pairs)
+        verti_matching_graph, verti_staberr2node, verti_node2staberr =  self.error_pairs2graph(verti_graph_error_pairs)
         
+        hori_staberr_special_fault_id = hori_board2staberr[hori_board_prob_indx]
+        verti_staberr_special_fault_id = verti_board2staberr[verti_board_prob_indx]
         
-        
-        
+        # staberr, node info ONLY into DecoderGraph
+        decoder_graph = DecoderGraph(hori_matching_graph, verti_matching_graph,hori_staberr_special_fault_id,verti_staberr_special_fault_id, verti_staberr2node, verti_node2staberr, hori_staberr2node, hori_node2staberr)
         
         # Now, center things on zero
         hori_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces),  power=(-self.L//2) + 1)
@@ -387,50 +412,24 @@ class FibCode():
         for row in range(len(verti_parity)):
             verti_parity[row] =self.shift_by_x(self.shift_by_y( verti_parity[row] ))  #0th entry here should correspond to midpoint of bottom triangle and should be on 0th bit 
         
+
         # TODO center special bit
         # TODO center staberror2board
         # TODO center board2staberror
-        
-        
-        
-        
-        
-        
-        
     
         
         round_count = 0
 
-        for _ in range(self.L//2): # will wrap around to all bits 
+        for y_offset in range(self.L//2): # will wrap around to all bits 
             hori_stab_faces = self.shift_by_y(hori_stab_faces)
             verti_stab_faces = self.shift_by_y(verti_stab_faces)
-            for _ in range(self.L):
+            for x_offset in range(self.L):
                 round_count += 1
                 if self.no_bits > 10:
                     if round_count % (self.no_bits//10) == 0: # log every additional 10% of board coverage
                         self.logger.info(f" currently on round: {round_count}")
                         self.logger.info(f"current board is {self.board}")
                         
-                # TODO consider csc_matrix? are the gains even worth it? 
-                hori_stab_faces = self.shift_by_x(hori_stab_faces)
-                verti_stab_faces = self.shift_by_x(verti_stab_faces)
-                
-                
-                hori_stab_faces_rect = np.reshape(hori_stab_faces, (self.L//2, self.L))
-                verti_stab_faces_rect = np.reshape(verti_stab_faces, (self.L//2, self.L))
-
-                hori_check_matrix, hori_parity_rows_to_faces  = self.generate_check_matrix_from_faces(hori_stab_faces_rect)  # TODO make a special +y/x for check mats
-                verti_check_matrix, verti_parity_rows_to_faces = self.generate_check_matrix_from_faces(verti_stab_faces_rect)
-
-                hori_matching_graph = self.ret2net(self.generate_error_syndrome_graph(hori_check_matrix, self.no_bits))
-                verti_matching_graph =  self.ret2net(self.generate_error_syndrome_graph(verti_check_matrix, self.no_bits))
-                
-    
-                hori_matching = pm.Matching(hori_matching_graph) # TODO add weights 
-                verti_matching = pm.Matching(verti_matching_graph) # TODO add weights 
-        
-                hori_syndrome_mat = self._calc_syndrome(hori_check_matrix) 
-                verti_syndrome_mat = self._calc_syndrome(verti_check_matrix)
                 
                 # # make sure hori_syndrome matches TODO make sure nodes are what I think they are. 
                 # hori_syndrome_post_graph = [0]*len(hori_syndrome_mat) 
