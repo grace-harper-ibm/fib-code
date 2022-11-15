@@ -115,9 +115,7 @@ class FibCodeTest(unittest.TestCase):
         assert (ans == sol).all(), f"The result: {ans} is not the expected: {sol}"            
         assert ans.shape == sol.shape, f"The result's shape: {ans.shape}  is not the expected shape: {sol.shape}"       
          
-        
-        
-        
+    
     def test_gen_stabs(self):
         fcheck_sol = np.array([
         [1, 1, 1, 0, 0, 1, 0, 0],
@@ -179,7 +177,7 @@ class FibCodeTest(unittest.TestCase):
                 assert False, f"hello\n  Row {indx} of fcheck is\n {fcheck[indx] }\n but should be \n{crow}\n They fail at\n {bad_indices}"
    
    
-    
+
 
 # Those graph libraries tho 
 
