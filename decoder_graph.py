@@ -53,12 +53,7 @@ class DecoderGraph:
     #     self.verti_staberr2node = verti_staberr2node
     #     self.verti_node2staberr = verti_node2staberr
 
-    def decode_hori(self, hori_syndrome):
-        """Returns whether the horizontal probe edge (aka the bottom middle bit of the triangle) was in an even (0 aka no flip) or odd (1 aka flip) number of times in the matching graph"""
-        res = self.matching_decoder.decode(hori_syndrome)
-        return res[self.hori_prob_fault_id]
-
-    def decode_verti(self, verti_syndrome):
-        """Returns whether the vertical probe edge (aka if you look at the row where the bottom of the triangle is, there will be 1 bit that isn't on/in the triangle. this is that bit) was in an even (0 aka no flip) or odd (1 aka flip) number of times in the matching graph"""
-        res = self.matching_decoder.decode(verti_syndrome)
-        return res[self.verti_prob_fault_id]
+    def decode_prob(self, syndrome):
+        """Returns whether the horizontal probe edge (aka the bottom middle bit of the triangle) was in an even (0 aka no flip) or odd (1 aka flip) number of times in the matching graph && the vertical probe"""
+        res = self.matching_decoder.decode(syndrome)
+        return res[self.hori_prob_fault_id], res[self.verti_prob_fault_id]

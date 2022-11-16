@@ -370,15 +370,15 @@ class FibCode:
 
         return error_pairs, board2staberr, staberr2board
 
-    def ret2net(self, graph: rx.PyGraph):  # stolen from Wootton
-        """Convert rustworkx graph to equivalent networkx graph."""
-        nx_graph = nx.MultiGraph()
-        for j, stabid in enumerate(graph.nodes()):
-            nx_graph.add_node(j)
-            nx.set_node_attributes(nx_graph, {j: stabid}, str(stabid))
-        for j, (n0, n1) in enumerate(graph.edge_list()):
-            nx_graph.add_edge(n0, n1, fault_id=j)
-        return nx_graph
+    # def ret2net(self, graph: rx.PyGraph):  # stolen from Wootton
+    #     """Convert rustworkx graph to equivalent networkx graph."""
+    #     nx_graph = nx.MultiGraph()
+    #     for j, stabid in enumerate(graph.nodes()):
+    #         nx_graph.add_node(j)
+    #         nx.set_node_attributes(nx_graph, {j: stabid}, str(stabid))
+    #     for j, (n0, n1) in enumerate(graph.edge_list()):
+    #         nx_graph.add_edge(n0, n1, fault_id=j)
+    #     return nx_graph
 
     # def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
     #     all_possible_errors = self.generate_all_possible_error_syndromes(
@@ -439,16 +439,16 @@ class FibCode:
         # return S
 
     def decode_fib_code(self):
-        def hori_shift_fund_to_zeroth(value, is_check_mat=False):
-            if isinstance(value, int):
-                return self.shift_by_x_scalar(self.shift_by_y_scalar(value), shift_no=(-self.L // 2) + 1)
-            elif is_check_mat:
-                new_value = copy.deepcopy(value) # this function should only run once so not a big deal? want to avoid side affects
-                for row in range(len(new_value)):
-                    new_value[row] = self.shift_by_x(self.shift_by_y(new_value[row]), power=(-self.L // 2) + 1)
-                    return new_value
-            else:
-                return self.shift_by_x(self.shift_by_y(value), power=(-self.L // 2) + 1) 
+        # def hori_shift_fund_to_zeroth(value, is_check_mat=False):
+        #     if isinstance(value, int):
+        #         return self.shift_by_x_scalar(self.shift_by_y_scalar(value), shift_no=(-self.L // 2) + 1)
+        #     elif is_check_mat:
+        #         new_value = copy.deepcopy(value) # this function should only run once so not a big deal? want to avoid side affects
+        #         for row in range(len(new_value)):
+        #             new_value[row] = self.shift_by_x(self.shift_by_y(new_value[row]), power=(-self.L // 2) + 1)
+        #             return new_value
+        #     else:
+        #         return self.shift_by_x(self.shift_by_y(value), power=(-self.L // 2) + 1) 
             
         # def verti_shift_fund_to_zeroth(value, is_check_mat=False):
         #     if isinstance(value, int):
@@ -470,110 +470,77 @@ class FibCode:
         fundamental_stab_faces.shape = (self.L//2, self.L)
         fundamental_check_matrix,  board2stab = self.generate_check_matrix_from_faces(fundamental_stab_faces) 
         fund_error_pairs, board2staberr, staberr2board = self.generate_all_possible_error_syndromes(fundamental_check_matrix)
-        fund_matching_graph, staberr2node, node2staberr = self.error_pairs2graph(fund_error_pairs) 
-        decoder = pm.Matching(fund_matching_graph)
+        fund_matching_graph, fundstab2node, _ = self.error_pairs2graph(fund_error_pairs) 
+        decoder = DecoderGraph(fund_matching_graph, fundamental_hori_probe_indx, fundamental_verti_probe_indx, fundstab2node)
+        
+        h_correction = [0]* self.no_bits
+        v_correction = [0]* self.no_bits
+        parity_check_matrix = copy.deepcopy(fundamental_check_matrix) 
+        hori_probe_indx = fundamental_hori_probe_indx
+        verti_probe_indx = fundamental_verti_probe_indx
+        
+        prev_all_syndrome = (self._calc_syndrome(self.all_stabs_check_mat) == 1).sum()
+        if prev_all_syndrome == 0:
+            return "yay! Started with 0 errors"
+        
+        cur_all_syndrome = prev_all_syndrome
+        start_flag = True 
+        while (cur_all_syndrome < prev_all_syndrome or start_flag ):
+            start_flag = False  
+            prev_all_syndrome = cur_all_syndrome
+         
+            for y_offset in range(self.L // 2):  # will wrap around to all bits
+                parity_check_matrix = self.shift_by_y(parity_check_matrix)
+                hori_probe_indx = self.shift_by_y_scalar(hori_probe_indx)
+                verti_probe_indx = self.shift_by_y_scalar(verti_probe_indx)
+        
+                for x_offset in range(self.L):
+                    parity_check_matrix = self.shift_by_x(parity_check_matrix)
+                    hori_probe_indx = self.shift_by_x_scalar(hori_probe_indx)
+                    verti_probe_indx = self.shift_by_x_scalar(verti_probe_indx)
 
-        return fundamental_stab_faces, fundamental_check_matrix, fund_error_pairs, fund_matching_graph
+                    round_count += 1
+                    if self.no_bits > 10:
+                        if (
+                            round_count % (self.no_bits // 10) == 0
+                        ):  # log every additional 10% of board coverage
+                            self.logger.info(f" currently on round: {round_count}")
+                            self.logger.info(f"current board is {self.board}")
+
+                    cur_syndrome = self._calc_syndrome(parity_check_matrix)
+                    hcorval, vcorval = decoder.decode_prob(cur_syndrome)
+                    h_correction[hori_probe_indx] = hcorval
+                    v_correction[verti_probe_indx] = vcorval
+        
+            d_correction = h_correction * v_correction
+            hboard = self.board ^ h_correction  # apply correction
+            vboard = self.board ^ v_correction
+            dboard = self.board ^ d_correction
+
+            hcorsynd = [
+            (self._calc_syndrome(self.all_stabs_check_mat, hboard) == 1).sum(),
+                hboard,
+                "hori",
+            ]
+            vcorsynd = [
+                (self._calc_syndrome(self.all_stabs_check_mat, vboard) == 1).sum(),
+                vboard,
+                "verti",
+            ]
+            dcorsynd = [
+                (self._calc_syndrome(self.all_stabs_check_mat, dboard) == 1).sum(),
+                dboard,
+                "dcor",
+            ]
+
+            opts = [hcorsynd, vcorsynd, dcorsynd]
+
+            winner = min(opts, key=lambda x: x[0])
+            cur_all_syndrome = winner[0]
+            self.board = winner[1]  # update board to best one
         
         
-    #     hori_corrections = [0]*self.no_bits
-    #    # verti_corrections = [0]* self.no_bits
-
-        # # Now, center things on zero
-        # hori_stab_faces.shape = self.no_bits
-        # hori_stab_faces = hori_shift_fund_to_zeroth(hori_stab_faces) 
-        
-        # hori_parity = hori_shift_fund_to_zeroth(hori_parity, is_check_mat=True)
-        
-        # # TODO could probably get away with just tracking special bit index
-        # hori_board2staberr = {} # not all board entries will have a stab error associated with them 
-        # for staberr, bindx in hori_staberr2board.items():
-        #     shifted_bindx = hori_shift_fund_to_zeroth(bindx) 
-        #     hori_staberr2board[staberr] = shifted_bindx
-        #     hori_board2staberr[shifted_bindx] = staberr 
-            
-        # hori_board_probe_indx =0 
-        # hori_staberr_probe_indx = hori_board2staberr[hori_board_prob_indx]
-        
-        # return hori_board_prob_indx, hori_staberr_probe_indx, hori_stab_faces, hori_parity, hori_board2staberr, hori_staberr_special_fault_id
-        
-            
-        # round_count = 0
-
-        # for y_offset in range(self.L // 2):  # will wrap around to all bits
-        #     hori_stab_faces = self.shift_by_y(hori_stab_faces)
-        #     verti_stab_faces = self.shift_by_y(verti_stab_faces)
-        #     for x_offset in range(self.L):
-        #         round_count += 1
-        #         if self.no_bits > 10:
-        #             if (
-        #                 round_count % (self.no_bits // 10) == 0
-        #             ):  # log every additional 10% of board coverage
-        #                 self.logger.info(f" currently on round: {round_count}")
-        #                 self.logger.info(f"current board is {self.board}")
-
-        #         # # make sure hori_syndrome matches TODO make sure nodes are what I think they are.
-        #         # hori_syndrome_post_graph = [0]*len(hori_syndrome_mat)
-        #         # for i in range(len(hori_syndrome_mat)):
-        #         #     if hori_syndrome_mat[i] == 1:
-        #         #         hori_syndrome_post_graph[hori_matching_graph.nodes().index(i) ] = 1
-
-        #         # verti_syndrome_post_graph = [0] * len(verti_syndrome_mat)
-        #         # for i in range(len(verti_syndrome_mat)):
-        #         #     if verti_syndrome_mat[i] == 1:
-        #         #         verti_syndrome_post_graph[verti_matching_graph.nodes().index(i)] = 1
-
-        #         hori_prediction = hori_matching.decode(hori_syndrome_mat)
-        #         verti_prediction = verti_matching.decode(verti_syndrome_mat)
-
-        #         self.logger.info(
-        #             f"HORI: check matrix\n {hori_check_matrix}\n  syndrome:\n {hori_syndrome_mat}"
-        #         )
-        #         self.logger.info(
-        #             f"VERTI: check matrix\n {verti_check_matrix}\n  syndrome:\n {verti_syndrome_mat}"
-        #         )
-
-        #         # take stabs to faces:
-        #         hori_correction = np.zeros(self.no_bits, dtype=int)
-        #         verti_correction = np.zeros(self.no_bits, dtype=int)
-
-        #         for h in hori_prediction:
-        #             hori_correction[hori_parity_rows_to_faces[h]] = 1
-
-        #         for v in verti_prediction:
-        #             verti_correction[verti_parity_rows_to_faces[v]] = 1
-
-        #         hboard = self.board ^ hori_correction  # apply correction
-        #         vboard = self.board ^ verti_correction
-        #         dboard = self.board ^ (
-        #             hori_correction * verti_correction
-        #         )  # only flip bits they agree should be flipped
-
-        #         # test new syndroms
-
-        #         hcorsynd = [
-        #             (self._calc_syndrome(self.all_stabs_check_mat, hboard) == 1).sum(),
-        #             hboard,
-        #             "hori",
-        #         ]
-        #         vcorsynd = [
-        #             (self._calc_syndrome(self.all_stabs_check_mat, vboard) == 1).sum(),
-        #             vboard,
-        #             "verti",
-        #         ]
-        #         dcorsynd = [
-        #             (self._calc_syndrome(self.all_stabs_check_mat, dboard) == 1).sum(),
-        #             dboard,
-        #             "dcor",
-        #         ]
-
-        #         opts = [hcorsynd, vcorsynd, dcorsynd]
-
-        #         winner = min(opts, key=lambda x: x[0])
-        #         self.board = winner[1]  # update board to best one
-        #         self.logger.info(
-        #             f"initial correction correction information: f{winner}"
-        #         )
-
-        #         if winner[0] == 0:
-        #             return "yay!!"
+        if winner[0] == 0:
+            return "yay! success", winner
+        else:
+            return f"sadness still had this syndrome: {winner[0]}", winner 
