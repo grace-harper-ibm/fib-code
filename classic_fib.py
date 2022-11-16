@@ -6,6 +6,7 @@ import datetime
 import logging
 import math
 import random
+from argparse import ArgumentError
 
 import networkx as nx
 import rustworkx as rx
@@ -36,7 +37,6 @@ class FibCode:
         L=8,
         p=0.001,
         decip=1000,
-        code_bottom_row_start_sequence=None,
         pause=1000,
         error_board_override=None,
     ):
@@ -184,25 +184,24 @@ class FibCode:
         return bit
 
     def _generate_plus_x_trans_matrix(self):
+        "Takes bit to bit + 1 mod rownum aka shifts bit to the right but wraps around its current row"
         H = np.zeros((self.no_bits, self.no_bits), dtype=int)
         for b in range(self.no_bits):
-            # H[new_bit][old_bit]
             new_bit = self.shift_by_x_scalar(b)
-            #new_bit = ((b + 1) % self.L) + ((b // self.L) * (self.L))
             H[new_bit][b] = 1
         return H
 
     def _generate_plus_y_trans_matrix(self):
-        "performs a -1 y (or a + 1 y if you're indexing rows top to bottom like numpy :...("
+        "takes bit to bit + L mod L//2 aka shifts bit the row below but very bottom row shifts to be the 0th row"
         H = np.zeros((self.no_bits, self.no_bits), dtype=int)
-
         for b in range(self.no_bits):
             new_bit = self.shift_by_y_scalar(b)
-            #new_bit = (b + self.L) % self.no_bits
             H[new_bit][b] = 1
         return H
 
     def _generate_init_symmetry(self, start_arr=None):
+        if start_arr and sum(start_arr) != 1:
+            raise ArgumentError(f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}")
         # fundamental symmetries start from the top instead of the bottom because numpy
         rect_board = np.zeros((self.L // 2, self.L), dtype=int)
         if start_arr is None:
@@ -220,7 +219,9 @@ class FibCode:
         return rect_board
 
     def _generate_init_code_word(self, start_arr=None):
-        # fundamental symmetries start from the top instead of the bottom because numpy
+        if start_arr and sum(start_arr) != 1:
+            raise ArgumentError(f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}")
+        # generates from bottom row up 
         rect_board = np.zeros((self.L // 2, self.L), dtype=int)
         if start_arr is None:
             start_arr = np.zeros(self.L, dtype=int)
@@ -236,7 +237,7 @@ class FibCode:
         return rect_board
 
     def shift_by_x(self, bitarr, power=1):
-        # shifts by x + 1 aka right
+        # shifts every entry in board matrix right by 1 w/ wrap around 
         power = power % self.L
         Hx = np.linalg.matrix_power(self.Hx, power)
         sol = np.matmul(Hx, bitarr)
@@ -244,6 +245,7 @@ class FibCode:
         return sol
 
     def shift_by_y(self, bitarr, power=1):
+        # shifts every entry in board matrix down by 1 w/ wrap around 
         power = power % (self.L // 2)
         Hy = np.linalg.matrix_power(self.Hy, power)
         sol = np.matmul(Hy, bitarr)
@@ -251,12 +253,14 @@ class FibCode:
         return sol
    
     def shift_by_y_scalar(self, bit,shift_no=1):
+         # shifts entry in board matrix down by 1 w/ wrap around 
         new_bit = bit
         for _ in range(shift_no):
             new_bit = (new_bit + self.L) % self.no_bits
         return new_bit
     
     def shift_by_x_scalar(self, bit, shift_no=1):
+         # shifts entry in board matrix right by 1 w/ wrap around 
         new_bit = bit
         for _ in range(shift_no):
             new_bit = ((new_bit + 1) % self.L) + ((new_bit // self.L) * (self.L))
@@ -319,13 +323,6 @@ class FibCode:
         return parity_mat, faces_to_stabs_rows
 
     def generate_all_possible_error_syndromes(self, parity_check_matrix, no_bits=None):
-        def map_and_update(face, staberr_id_count):
-            if face not in board2staberr:
-                staberr_face = staberr_id_count
-                board2staberr[face] = staberr_face
-                staberr2board[staberr_face] = face
-                staberr_id_count += 1
-            return board2staberr[face], staberr_id_count
 
         # "there's gotta be a smarter way to do this "
         if no_bits is None:
@@ -333,9 +330,6 @@ class FibCode:
         error_pairs = set()  # (stab_face1, stab_face2, errorbit)
         single_error = np.zeros(no_bits, dtype=int)
 
-        staberr2board = {}
-        board2staberr = {}
-        staberr_id_count = 0  # if we start with a parity check for a symmetry not the fundamental symmetry, the labellings with be a bit wonky
 
         for b in range(no_bits):
             if no_bits > 10 and b % (no_bits // 10) == 0:
@@ -363,42 +357,9 @@ class FibCode:
                 for indx in range(0, len(stabs), 2):
                         error_pairs.add(( stabs[indx], stabs[indx + 1], b))
 
-                    # #TODO this is WRONG, 
-                    # # this is stabindx not bindx 
-                    # bindx_stab0 = stabs[indx]
-                    # bindx_stab1 = stabs[indx + 1]
+        return error_pairs
 
-                    # staberr_s0, staberr_id_count = map_and_update(
-                    #     bindx_stab0, staberr_id_count
-                    # )
-                    # staberr_s1, staberr_id_count = map_and_update(
-                    #     bindx_stab1, staberr_id_count
-                    # )
-                    # staberr_ebit, staberr_id_count = map_and_update(b, staberr_id_count)
-
-                    # error_pairs.add((staberr_s0, staberr_s1, staberr_ebit))
-
-        return error_pairs, board2staberr, staberr2board
-
-    # def ret2net(self, graph: rx.PyGraph):  # stolen from Wootton
-    #     """Convert rustworkx graph to equivalent networkx graph."""
-    #     nx_graph = nx.MultiGraph()
-    #     for j, stabid in enumerate(graph.nodes()):
-    #         nx_graph.add_node(j)
-    #         nx.set_node_attributes(nx_graph, {j: stabid}, str(stabid))
-    #     for j, (n0, n1) in enumerate(graph.edge_list()):
-    #         nx_graph.add_edge(n0, n1, fault_id=j)
-    #     return nx_graph
-
-    # def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
-    #     all_possible_errors = self.generate_all_possible_error_syndromes(
-    #         parity_check_matrix, board_size
-    #     )
-    #     matching_graph = self.error_pairs2graph(all_possible_errors)
-    #     return matching_graph
-
-    def error_pairs2graph(self, error_graphs, no_stabs=None):
-    
+    def error_pairs2graph(self, error_graphs): 
         stab2node = {}
         graph = rx.PyGraph()
         def add_to_graph(stabid):
@@ -412,66 +373,9 @@ class FibCode:
             graph_node_n1 = add_to_graph(stab1)
             graph.add_edge(graph_node_n0, graph_node_n1, {"fault_ids": {fund_e}})
         
-        return graph, stab2node, {}
-
-        # def add_to_graph(staberr_id):
-        #     if staberr_id not in staberr2node:
-        #         graph_node_id = graph.add_node({"element": staberr_id})
-        #         staberr2node[staberr_id] = graph_node_id
-        #         node2staberr[graph_node_id] = staberr_id
-        #     return staberr2node[staberr_id] 
-
-        # if no_stabs is None:
-        #     no_stabs = len(
-        #         self.fundamental_stabilizer_parity_check_matrix
-        #     )  # rows of parity check matrix
-        # staberr2node = {}
-        # node2staberr = {}
-        # graph = rx.PyGraph()
-
-        # # add elements so doesn't yell, "node" isn't required party of dictionary
-        # for staberr_n0, staberr_n1, staberr_e in error_graphs:
-        #     graph_node_n0 = add_to_graph(staberr_n0)
-        #     graph_node_n1 = add_to_graph(staberr_n1)
-        #     graph.add_edge(graph_node_n0, graph_node_n1, {"fault_ids": {staberr_e}})
-
-        # return graph, staberr2node, node2staberr
-
-        # for in range(no_stabs):
-        #     graph.add(i)
-        # for i in range(no_stabs): # +1 is boundary node
-        #     S.add_node(i)
-        # # copied James Wootton's code, a true hero.
-        # for n0, n1, e in error_graphs:
-        #     j = S.nodes().index(n0)
-        #     k = S.nodes().index(n1)
-        #     S.add_edge(j, k, str(e))
-        # return S
+        return graph, stab2node
 
     def decode_fib_code(self):
-        # def hori_shift_fund_to_zeroth(value, is_check_mat=False):
-        #     if isinstance(value, int):
-        #         return self.shift_by_x_scalar(self.shift_by_y_scalar(value), shift_no=(-self.L // 2) + 1)
-        #     elif is_check_mat:
-        #         new_value = copy.deepcopy(value) # this function should only run once so not a big deal? want to avoid side affects
-        #         for row in range(len(new_value)):
-        #             new_value[row] = self.shift_by_x(self.shift_by_y(new_value[row]), power=(-self.L // 2) + 1)
-        #             return new_value
-        #     else:
-        #         return self.shift_by_x(self.shift_by_y(value), power=(-self.L // 2) + 1) 
-            
-        # def verti_shift_fund_to_zeroth(value, is_check_mat=False):
-        #     if isinstance(value, int):
-        #         return self.shift_by_x_scalar(self.shift_by_y_scalar(value))
-        #     elif is_check_mat:
-        #         new_value = copy.deepcopy(value)
-        #         for row in range(len(new_value)):
-        #             new_value[row] = self.shift_by_x(self.shift_by_y(new_value[row]))  # 0th entry here should correspond to midpoint of bottom triangle and should be on 0th bit
-        #         return new_value
-        #     else:
-        #         return  self.shift_by_x(self.shift_by_y(value))
-
-                
         # generate graphs and mappings
         
         fundamental_stab_faces = copy.deepcopy(self.fundamental_symmetry)
@@ -479,10 +383,8 @@ class FibCode:
         fundamental_verti_probe_indx = self.no_bits - 1 
         fundamental_stab_faces.shape = (self.L//2, self.L) #TODO should work 
         fundamental_check_matrix,  board2stab = self.generate_check_matrix_from_faces(fundamental_stab_faces) 
-        fund_error_pairs, board2staberr, staberr2board = self.generate_all_possible_error_syndromes(fundamental_check_matrix)
-        fund_matching_graph, fundstab2node, _ = self.error_pairs2graph(fund_error_pairs) 
-        # TODO: 
-            # go through error pairs and make if a probe overlaps both stabs with another erorr_node, that errornode enty w those stabes is kicked out 
+        fund_error_pairs = self.generate_all_possible_error_syndromes(fundamental_check_matrix)
+        fund_matching_graph, fundstab2node = self.error_pairs2graph(fund_error_pairs) 
             
         self.decoder = DecoderGraph(fund_matching_graph, fundamental_hori_probe_indx, fundamental_verti_probe_indx, fundstab2node)
         
@@ -498,6 +400,7 @@ class FibCode:
         
         cur_all_syndrome = prev_all_syndrome
         start_flag = True 
+        meta_round_count = 0
         round_count = 0
         fundamental_stab_faces.shape = self.no_bits
         while (cur_all_syndrome < prev_all_syndrome or start_flag ):
@@ -512,41 +415,43 @@ class FibCode:
                 verti_probe_indx = self.shift_by_y_scalar(verti_probe_indx)
                 
                 for x_offset in range(self.L):
+                    self.logger.info(f"\n\ncurrently on round:\n{round_count}")
                     parity_check_matrix = self.shift_parity_mat_by_x(parity_check_matrix)
                     fundamental_stab_faces = self.shift_by_x(fundamental_stab_faces) 
                     hori_probe_indx = self.shift_by_x_scalar(hori_probe_indx)
                     verti_probe_indx = self.shift_by_x_scalar(verti_probe_indx)
 
                     fundamental_stab_faces.shape = (self.L//2, self.L)
-                    #print(f"PROBs:current fundy:\n{fundamental_stab_faces}")
                     fundamental_stab_faces.shape = self.no_bits
-                    #print(f"current board w error is: \n {self.board}")
-                    #print(f"current_parity_check_mat:\n{parity_check_matrix}")
+
                     cur_syndrome = self._calc_syndrome(parity_check_matrix)
-                    #print(f"cur-syndrome-symm: {cur_syndrome}")
                     # convert syndrome to node 
                     cur_node_syndrome = [0] * len(cur_syndrome)
                     for stabindx, value in enumerate(cur_syndrome):
                         nodeindx = fundstab2node[stabindx]
                         cur_node_syndrome[nodeindx] = value # TODO is right?
                     hcorval, vcorval, res = self.decoder.decode_prob(cur_node_syndrome)
-                    #print(f"res                             is: {res}")
-                    #print(f"hcorval: {hcorval}\nvcorval:{vcorval}")
-                    #print(f"hori probd inex: {hori_probe_indx}, verti_probe_inx: {verti_probe_indx}")
+                    
+                    
                     h_correction[hori_probe_indx] = hcorval
                     v_correction[verti_probe_indx] = vcorval
-                    #print(f"h_corr: {h_correction}\nv_corr:{v_correction}")
-                    #print()
-                    #print()
                     
                     
                     round_count += 1
-                    self.logger.info(f" currently on round:\n{round_count}")
-                    self.logger.info(f"h_correction: {h_correction}\nv_correction:{v_correction}")
+                    
+                    self.logger.debug(f"PROBs:current fundy:\n{fundamental_stab_faces}")
+                    self.logger.debug(f"current board w error is: \n {self.board}")
+                    self.logger.debug(f"current_parity_check_mat:\n{parity_check_matrix}")
+                    self.logger.debug(f"cur-syndrome-symm: {cur_syndrome}")
+                    self.logger.debug(f"res                             is: {res}")
+                    self.logger.debug(f"hcorval: {hcorval}\nvcorval:{vcorval}")
+                    self.logger.debug(f"hori probd inex: {hori_probe_indx}, verti_probe_inx: {verti_probe_indx}")                    
+                    self.logger.debug(f"h_corr: {h_correction}\nv_corr:{v_correction}")
             
-            # print("current try:")
-            # print(f"h_correction: {h_correction}\nv_correction:{v_correction}")
-            # print(f"board is {self.board}") 
+            self.logger.debug(f"Meta-Round {meta_round_count}:")
+            self.logger.debug(f"h_correction: {h_correction}\nv_correction:{v_correction}")
+            self.logger.debug(f"board is {self.board}") 
+            meta_round_count += 1 
             d_correction = h_correction * v_correction
             hboard = self.board ^ h_correction  # apply correction
             vboard = self.board ^ v_correction
