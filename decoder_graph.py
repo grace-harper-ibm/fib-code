@@ -29,4 +29,4 @@ class DecoderGraph:
     def decode_prob(self, syndrome):
         """Returns whether the horizontal probe edge (aka the bottom middle bit of the triangle) was in an even (0 aka no flip) or odd (1 aka flip) number of times in the matching graph && the vertical probe"""
         res = self.matching_decoder.decode(syndrome)
-        return res[self.hori_prob_fault_id], res[self.verti_prob_fault_id]
+        return res[self.hori_probe_fault_id], res[self.verti_probe_fault_id]

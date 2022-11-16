@@ -62,9 +62,10 @@ class FibCode:
             self.original_errors_board = error_board_override
         else:
             self.original_errors_board = self.generate_errors()
+        self.original_code_board.shape = self.no_bits
         self.board = copy.deepcopy(self.original_errors_board)
         self.fundamental_symmetry = self._generate_init_symmetry()
-        self.fundamental_symmetry.shape = (self.L // 2, self.L)
+        self.fundamental_symmetry.shape =  (self.no_rows, self.no_cols)
         (
             self.fundamental_stabilizer_parity_check_matrix,
             self.fundamental_parity_rows_to_faces,
@@ -260,8 +261,18 @@ class FibCode:
         for _ in range(shift_no):
             new_bit = ((new_bit + 1) % self.L) + ((new_bit // self.L) * (self.L))
         return new_bit
-        
     
+    def shift_parity_mat_by_y(self, parity_mat, power=1):
+        "EDITS PARITY MAT"
+        for row in range(len(parity_mat)):
+            parity_mat[row] = self.shift_by_y(parity_mat[row], power=power)
+        return parity_mat
+        
+    def shift_parity_mat_by_x(self, parity_mat, power=1):
+        "EDITS PARITY MAT"
+        for row in range(len(parity_mat)):
+            parity_mat[row] = self.shift_by_x(parity_mat[row], power=power)
+        return parity_mat
 
     def _calc_syndrome(self, check_matr, board=None):
 
@@ -473,8 +484,8 @@ class FibCode:
         fund_matching_graph, fundstab2node, _ = self.error_pairs2graph(fund_error_pairs) 
         decoder = DecoderGraph(fund_matching_graph, fundamental_hori_probe_indx, fundamental_verti_probe_indx, fundstab2node)
         
-        h_correction = [0]* self.no_bits
-        v_correction = [0]* self.no_bits
+        h_correction = np.zeros(self.no_bits,dtype=int)
+        v_correction =np.zeros(self.no_bits,dtype=int)
         parity_check_matrix = copy.deepcopy(fundamental_check_matrix) 
         hori_probe_indx = fundamental_hori_probe_indx
         verti_probe_indx = fundamental_verti_probe_indx
@@ -485,17 +496,22 @@ class FibCode:
         
         cur_all_syndrome = prev_all_syndrome
         start_flag = True 
+        round_count = 0
         while (cur_all_syndrome < prev_all_syndrome or start_flag ):
             start_flag = False  
             prev_all_syndrome = cur_all_syndrome
+            
          
             for y_offset in range(self.L // 2):  # will wrap around to all bits
-                parity_check_matrix = self.shift_by_y(parity_check_matrix)
+                # TODO this is probably gross 
+                
+                parity_check_matrix = self.shift_parity_mat_by_y(parity_check_matrix)
+                
                 hori_probe_indx = self.shift_by_y_scalar(hori_probe_indx)
                 verti_probe_indx = self.shift_by_y_scalar(verti_probe_indx)
-        
+                
                 for x_offset in range(self.L):
-                    parity_check_matrix = self.shift_by_x(parity_check_matrix)
+                    parity_check_matrix = self.shift_parity_mat_by_x(parity_check_matrix)
                     hori_probe_indx = self.shift_by_x_scalar(hori_probe_indx)
                     verti_probe_indx = self.shift_by_x_scalar(verti_probe_indx)
 
