@@ -476,13 +476,16 @@ class FibCode:
         # generate graphs and mappings
         
         fundamental_stab_faces = copy.deepcopy(self.fundamental_symmetry)
-        fundamental_hori_probe_indx = self.no_bits - 1
-        fundamental_verti_probe_indx = ((self.L // 2) - 1) // 2
-        fundamental_stab_faces.shape = (self.L//2, self.L)
+        fundamental_hori_probe_indx = self.no_bits - (self.L//2) - 1
+        fundamental_verti_probe_indx = self.no_bits - 1 
+        fundamental_stab_faces.shape = (self.L//2, self.L) #TODO should work 
         fundamental_check_matrix,  board2stab = self.generate_check_matrix_from_faces(fundamental_stab_faces) 
         fund_error_pairs, board2staberr, staberr2board = self.generate_all_possible_error_syndromes(fundamental_check_matrix)
         fund_matching_graph, fundstab2node, _ = self.error_pairs2graph(fund_error_pairs) 
-        decoder = DecoderGraph(fund_matching_graph, fundamental_hori_probe_indx, fundamental_verti_probe_indx, fundstab2node)
+        # TODO: 
+            # go through error pairs and make if a probe overlaps both stabs with another erorr_node, that errornode enty w those stabes is kicked out 
+            
+        self.decoder = DecoderGraph(fund_matching_graph, fundamental_hori_probe_indx, fundamental_verti_probe_indx, fundstab2node)
         
         h_correction = np.zeros(self.no_bits,dtype=int)
         v_correction =np.zeros(self.no_bits,dtype=int)
@@ -497,37 +500,54 @@ class FibCode:
         cur_all_syndrome = prev_all_syndrome
         start_flag = True 
         round_count = 0
+        fundamental_stab_faces.shape = self.no_bits
         while (cur_all_syndrome < prev_all_syndrome or start_flag ):
             start_flag = False  
             prev_all_syndrome = cur_all_syndrome
             
          
-            for y_offset in range(self.L // 2):  # will wrap around to all bits
-                # TODO this is probably gross 
-                
+            for y_offset in range(self.L // 2):  # will wrap around to all bits                
                 parity_check_matrix = self.shift_parity_mat_by_y(parity_check_matrix)
-                
+                fundamental_stab_faces = self.shift_by_y(fundamental_stab_faces) 
                 hori_probe_indx = self.shift_by_y_scalar(hori_probe_indx)
                 verti_probe_indx = self.shift_by_y_scalar(verti_probe_indx)
                 
                 for x_offset in range(self.L):
                     parity_check_matrix = self.shift_parity_mat_by_x(parity_check_matrix)
+                    fundamental_stab_faces = self.shift_by_x(fundamental_stab_faces) 
                     hori_probe_indx = self.shift_by_x_scalar(hori_probe_indx)
                     verti_probe_indx = self.shift_by_x_scalar(verti_probe_indx)
 
-                    round_count += 1
-                    if self.no_bits > 10:
-                        if (
-                            round_count % (self.no_bits // 10) == 0
-                        ):  # log every additional 10% of board coverage
-                            self.logger.info(f" currently on round: {round_count}")
-                            self.logger.info(f"current board is {self.board}")
-
+                    fundamental_stab_faces.shape = (self.L//2, self.L)
+                    print(f"PROBs:current fundy:\n{fundamental_stab_faces}")
+                    fundamental_stab_faces.shape = self.no_bits
+                    print(f"current board w error is: \n {self.board}")
+                    print(f"current_parity_check_mat:\n{parity_check_matrix}")
                     cur_syndrome = self._calc_syndrome(parity_check_matrix)
-                    hcorval, vcorval = decoder.decode_prob(cur_syndrome)
+                    print(f"cur-syndrome-symm: {cur_syndrome}")
+                    # convert syndrome to node 
+                    cur_node_syndrome = [0] * len(cur_syndrome)
+                    for stabindx, value in enumerate(cur_syndrome):
+                        nodeindx = fundstab2node[stabindx]
+                        cur_node_syndrome[nodeindx] = value # TODO is right?
+                    hcorval, vcorval, res = self.decoder.decode_prob(cur_node_syndrome)
+                    print(f"res                             is: {res}")
+                    print(f"hcorval: {hcorval}\nvcorval:{vcorval}")
+                    print(f"hori probd inex: {hori_probe_indx}, verti_probe_inx: {verti_probe_indx}")
                     h_correction[hori_probe_indx] = hcorval
                     v_correction[verti_probe_indx] = vcorval
-        
+                    print(f"h_corr: {h_correction}\nv_corr:{v_correction}")
+                    print()
+                    print()
+                    
+                    
+                    round_count += 1
+                    self.logger.info(f" currently on round:\n{round_count}")
+                    self.logger.info(f"h_correction: {h_correction}\nv_correction:{v_correction}")
+            
+            print("current try:")
+            print(f"h_correction: {h_correction}\nv_correction:{v_correction}")
+            print(f"board is {self.board}") 
             d_correction = h_correction * v_correction
             hboard = self.board ^ h_correction  # apply correction
             vboard = self.board ^ v_correction
