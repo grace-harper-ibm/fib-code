@@ -275,7 +275,6 @@ class FibCode:
         return parity_mat
 
     def _calc_syndrome(self, check_matr, board=None):
-
         if board is None:
             board = self.board
         #  % 2 # TODO numpy almost certainly has a way of efficiently dealing w binary matrices -- figure that out
@@ -519,35 +518,35 @@ class FibCode:
                     verti_probe_indx = self.shift_by_x_scalar(verti_probe_indx)
 
                     fundamental_stab_faces.shape = (self.L//2, self.L)
-                    print(f"PROBs:current fundy:\n{fundamental_stab_faces}")
+                    #print(f"PROBs:current fundy:\n{fundamental_stab_faces}")
                     fundamental_stab_faces.shape = self.no_bits
-                    print(f"current board w error is: \n {self.board}")
-                    print(f"current_parity_check_mat:\n{parity_check_matrix}")
+                    #print(f"current board w error is: \n {self.board}")
+                    #print(f"current_parity_check_mat:\n{parity_check_matrix}")
                     cur_syndrome = self._calc_syndrome(parity_check_matrix)
-                    print(f"cur-syndrome-symm: {cur_syndrome}")
+                    #print(f"cur-syndrome-symm: {cur_syndrome}")
                     # convert syndrome to node 
                     cur_node_syndrome = [0] * len(cur_syndrome)
                     for stabindx, value in enumerate(cur_syndrome):
                         nodeindx = fundstab2node[stabindx]
                         cur_node_syndrome[nodeindx] = value # TODO is right?
                     hcorval, vcorval, res = self.decoder.decode_prob(cur_node_syndrome)
-                    print(f"res                             is: {res}")
-                    print(f"hcorval: {hcorval}\nvcorval:{vcorval}")
-                    print(f"hori probd inex: {hori_probe_indx}, verti_probe_inx: {verti_probe_indx}")
+                    #print(f"res                             is: {res}")
+                    #print(f"hcorval: {hcorval}\nvcorval:{vcorval}")
+                    #print(f"hori probd inex: {hori_probe_indx}, verti_probe_inx: {verti_probe_indx}")
                     h_correction[hori_probe_indx] = hcorval
                     v_correction[verti_probe_indx] = vcorval
-                    print(f"h_corr: {h_correction}\nv_corr:{v_correction}")
-                    print()
-                    print()
+                    #print(f"h_corr: {h_correction}\nv_corr:{v_correction}")
+                    #print()
+                    #print()
                     
                     
                     round_count += 1
                     self.logger.info(f" currently on round:\n{round_count}")
                     self.logger.info(f"h_correction: {h_correction}\nv_correction:{v_correction}")
             
-            print("current try:")
-            print(f"h_correction: {h_correction}\nv_correction:{v_correction}")
-            print(f"board is {self.board}") 
+            # print("current try:")
+            # print(f"h_correction: {h_correction}\nv_correction:{v_correction}")
+            # print(f"board is {self.board}") 
             d_correction = h_correction * v_correction
             hboard = self.board ^ h_correction  # apply correction
             vboard = self.board ^ v_correction
