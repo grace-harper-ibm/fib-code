@@ -25,33 +25,6 @@ class DecoderGraph:
             graphviz_draw(self.matching_graph, edge_attr_fn=edge_attr, node_attr_fn=node_attr)
         else:
             graphviz_draw(self.matching_graph, edge_attr_fn=edge_attr, node_attr_fn=None)
-            
-        
-
-    # # this init is trash and I oppose it
-    # def __init__(
-    #     self,
-    #     hori_graph,
-    #     verti_graph,
-    #     hori_prob_fault_id,
-    #     verti_prob_fault_id,
-    #     verti_staberr2node,
-    #     verti_node2staberr,
-    #     hori_staberr2node,
-    #     hori_node2staberr,
-    # ) -> None:
-    #     self.hori_graph = hori_graph
-    #     self.verti_graph = verti_graph
-    #     self.hori_matching = pm.Matching(self.hori_graph)  # TODO add weights
-    #     self.verti_matching = pm.Matching(self.verti_graph)
-    #     self.hori_prob_fault_id = hori_prob_fault_id
-    #     self.verti_prob_fault_id = verti_prob_fault_id
-
-    #     self.hori_staberr2node = hori_staberr2node
-    #     self.hori_node2staberr = hori_node2staberr
-
-    #     self.verti_staberr2node = verti_staberr2node
-    #     self.verti_node2staberr = verti_node2staberr
 
     def decode_prob(self, syndrome):
         """Returns whether the horizontal probe edge (aka the bottom middle bit of the triangle) was in an even (0 aka no flip) or odd (1 aka flip) number of times in the matching graph && the vertical probe"""

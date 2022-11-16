@@ -481,7 +481,7 @@ class FibCode:
         
         prev_all_syndrome = (self._calc_syndrome(self.all_stabs_check_mat) == 1).sum()
         if prev_all_syndrome == 0:
-            return "yay! Started with 0 errors"
+            return "yay! Started with 0 errors", []
         
         cur_all_syndrome = prev_all_syndrome
         start_flag = True 
