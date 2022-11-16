@@ -9,7 +9,6 @@ import random
 
 import networkx as nx
 import rustworkx as rx
-from this import d
 
 from decoder_graph import DecoderGraph
 
@@ -71,8 +70,7 @@ class FibCode:
             self.fundamental_parity_rows_to_faces,
         ) = self.generate_check_matrix_from_faces(self.fundamental_symmetry)
         self.fundamental_symmetry.shape = self.no_bits
-        self.fundamental_hori_probe_indx = self.no_bits - 1
-        self.fundamental_verti_probe_indx = ((self.L // 2) - 1) // 2
+      
         self.fundamental_single_error_syndromes = (
             self.generate_all_possible_error_syndromes(
                 self.fundamental_stabilizer_parity_check_matrix
@@ -251,17 +249,22 @@ class FibCode:
         sol = sol.astype(int)
         return sol
    
-    def shift_by_y_scalar(self, bit):
-        new_bit = (bit + self.L) % self.no_bits
+    def shift_by_y_scalar(self, bit,shift_no=1):
+        new_bit = bit
+        for _ in range(shift_no):
+            new_bit = (new_bit + self.L) % self.no_bits
         return new_bit
     
-    def shift_by_x_scalar(self, bit):
-        new_bit = ((bit + 1) % self.L) + ((bit // self.L) * (self.L))
+    def shift_by_x_scalar(self, bit, shift_no=1):
+        new_bit = bit
+        for _ in range(shift_no):
+            new_bit = ((new_bit + 1) % self.L) + ((new_bit // self.L) * (self.L))
         return new_bit
         
     
 
     def _calc_syndrome(self, check_matr, board=None):
+
         if board is None:
             board = self.board
         #  % 2 # TODO numpy almost certainly has a way of efficiently dealing w binary matrices -- figure that out
@@ -270,7 +273,7 @@ class FibCode:
         return sol
 
     def generate_check_matrix_from_faces(self, stab_faces):
-        """x
+        """                     x
         STABS:           xxx
         """
         # TODO slow because of all the shape changing
@@ -301,6 +304,7 @@ class FibCode:
                     new_stab[d] = 1
                     parity_mat = np.append(parity_mat, [new_stab], axis=0)
                     faces_to_stabs_rows[stab_row] = b
+                    stab_row += 1 
 
         return parity_mat, faces_to_stabs_rows
 
@@ -347,18 +351,22 @@ class FibCode:
 
             if len(stabs) > 0:
                 for indx in range(0, len(stabs), 2):
-                    bindx_stab0 = stabs[indx]
-                    bindx_stab1 = stabs[indx + 1]
+                        error_pairs.add(( stabs[indx], stabs[indx + 1], b))
 
-                    staberr_s0, staberr_id_count = map_and_update(
-                        bindx_stab0, staberr_id_count
-                    )
-                    staberr_s1, staberr_id_count = map_and_update(
-                        bindx_stab1, staberr_id_count
-                    )
-                    staberr_ebit, staberr_id_count = map_and_update(b, staberr_id_count)
+                    # #TODO this is WRONG, 
+                    # # this is stabindx not bindx 
+                    # bindx_stab0 = stabs[indx]
+                    # bindx_stab1 = stabs[indx + 1]
 
-                    error_pairs.add((staberr_s0, staberr_s1, staberr_ebit))
+                    # staberr_s0, staberr_id_count = map_and_update(
+                    #     bindx_stab0, staberr_id_count
+                    # )
+                    # staberr_s1, staberr_id_count = map_and_update(
+                    #     bindx_stab1, staberr_id_count
+                    # )
+                    # staberr_ebit, staberr_id_count = map_and_update(b, staberr_id_count)
+
+                    # error_pairs.add((staberr_s0, staberr_s1, staberr_ebit))
 
         return error_pairs, board2staberr, staberr2board
 
@@ -372,36 +380,52 @@ class FibCode:
             nx_graph.add_edge(n0, n1, fault_id=j)
         return nx_graph
 
-    def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
-        all_possible_errors = self.generate_all_possible_error_syndromes(
-            parity_check_matrix, board_size
-        )
-        matching_graph = self.error_pairs2graph(all_possible_errors)
-        return matching_graph
+    # def generate_error_syndrome_graph(self, parity_check_matrix, board_size):
+    #     all_possible_errors = self.generate_all_possible_error_syndromes(
+    #         parity_check_matrix, board_size
+    #     )
+    #     matching_graph = self.error_pairs2graph(all_possible_errors)
+    #     return matching_graph
 
     def error_pairs2graph(self, error_graphs, no_stabs=None):
-        def add_to_graph(staberr_id):
-            if staberr_id not in staberr2node:
-                graph_node_id = graph.add_node({"element": staberr_id})
-                staberr2node[staberr_id] = graph_node_id
-                node2staberr[graph_node_id] = staberr_id
-            return graph_node_id
-
-        if no_stabs is None:
-            no_stabs = len(
-                self.fundamental_stabilizer_parity_check_matrix
-            )  # rows of parity check matrix
-        staberr2node = {}
-        node2staberr = {}
+    
+        stab2node = {}
         graph = rx.PyGraph()
+        def add_to_graph(stabid):
+            if stabid not in stab2node:
+                nodeid = graph.add_node({"element": stabid})
+                stab2node[stabid] = nodeid 
+            return stab2node[stabid]
+                
+        for stab0, stab1, fund_e in error_graphs:
+            graph_node_n0 = add_to_graph(stab0)
+            graph_node_n1 = add_to_graph(stab1)
+            graph.add_edge(graph_node_n0, graph_node_n1, {"fault_ids": {fund_e}})
+        
+        return graph, stab2node, {}
 
-        # add elements so doesn't yell, "node" isn't required party of dictionary
-        for staberr_n0, staberr_n1, staberr_e in error_graphs:
-            graph_node_n0 = add_to_graph(staberr_n0)
-            graph_node_n1 = add_to_graph(staberr_n1)
-            graph.add_edge(graph_node_n0, graph_node_n1, {"fault_ids": {staberr_e}})
+        # def add_to_graph(staberr_id):
+        #     if staberr_id not in staberr2node:
+        #         graph_node_id = graph.add_node({"element": staberr_id})
+        #         staberr2node[staberr_id] = graph_node_id
+        #         node2staberr[graph_node_id] = staberr_id
+        #     return staberr2node[staberr_id] 
 
-        return graph, staberr2node, node2staberr
+        # if no_stabs is None:
+        #     no_stabs = len(
+        #         self.fundamental_stabilizer_parity_check_matrix
+        #     )  # rows of parity check matrix
+        # staberr2node = {}
+        # node2staberr = {}
+        # graph = rx.PyGraph()
+
+        # # add elements so doesn't yell, "node" isn't required party of dictionary
+        # for staberr_n0, staberr_n1, staberr_e in error_graphs:
+        #     graph_node_n0 = add_to_graph(staberr_n0)
+        #     graph_node_n1 = add_to_graph(staberr_n1)
+        #     graph.add_edge(graph_node_n0, graph_node_n1, {"fault_ids": {staberr_e}})
+
+        # return graph, staberr2node, node2staberr
 
         # for in range(no_stabs):
         #     graph.add(i)
@@ -415,161 +439,141 @@ class FibCode:
         # return S
 
     def decode_fib_code(self):
+        def hori_shift_fund_to_zeroth(value, is_check_mat=False):
+            if isinstance(value, int):
+                return self.shift_by_x_scalar(self.shift_by_y_scalar(value), shift_no=(-self.L // 2) + 1)
+            elif is_check_mat:
+                new_value = copy.deepcopy(value) # this function should only run once so not a big deal? want to avoid side affects
+                for row in range(len(new_value)):
+                    new_value[row] = self.shift_by_x(self.shift_by_y(new_value[row]), power=(-self.L // 2) + 1)
+                    return new_value
+            else:
+                return self.shift_by_x(self.shift_by_y(value), power=(-self.L // 2) + 1) 
+            
+        # def verti_shift_fund_to_zeroth(value, is_check_mat=False):
+        #     if isinstance(value, int):
+        #         return self.shift_by_x_scalar(self.shift_by_y_scalar(value))
+        #     elif is_check_mat:
+        #         new_value = copy.deepcopy(value)
+        #         for row in range(len(new_value)):
+        #             new_value[row] = self.shift_by_x(self.shift_by_y(new_value[row]))  # 0th entry here should correspond to midpoint of bottom triangle and should be on 0th bit
+        #         return new_value
+        #     else:
+        #         return  self.shift_by_x(self.shift_by_y(value))
+
+                
         # generate graphs and mappings
         
-        hori_stab_faces = copy.deepcopy(self.fundamental_symmetry)
-        verti_stab_faces = copy.deepcopy(self.fundamental_symmetry)
+        fundamental_stab_faces = copy.deepcopy(self.fundamental_symmetry)
+        fundamental_hori_probe_indx = self.no_bits - 1
+        fundamental_verti_probe_indx = ((self.L // 2) - 1) // 2
+        fundamental_stab_faces.shape = (self.L//2, self.L)
+        fundamental_check_matrix,  board2stab = self.generate_check_matrix_from_faces(fundamental_stab_faces) 
+        fund_error_pairs, board2staberr, staberr2board = self.generate_all_possible_error_syndromes(fundamental_check_matrix)
+        fund_matching_graph, staberr2node, node2staberr = self.error_pairs2graph(fund_error_pairs) 
+        decoder = pm.Matching(fund_matching_graph)
 
-        hori_board_prob_indx = self.fundamental_hori_probe_indx
-        verti_board_prob_indx = self.fundamental_verti_probe_indx
-
-        hori_stab_faces.shape = (self.L**2) // 2  # how bad is this
-        verti_stab_faces.shape = (self.L**2) // 2  # how bad is this
-
-        hori_parity = self.generate_check_matrix_from_faces(hori_stab_faces)
-        verti_parity = self.generate_check_matrix_from_faces(verti_stab_faces)
-
-        # generate graph and board2graph mappings
-        (
-            hori_graph_error_pairs,
-            hori_board2staberr,
-            hori_staberr2board,
-        ) = self.generate_all_possible_error_syndromes(
-            hori_parity
-        )  # TODO test this
-        (
-            verti_graph_error_pairs,
-            verti_board2staberr,
-            verti_staberr2board,
-        ) = self.generate_all_possible_error_syndromes(
-            verti_parity
-        )  # TODO test this
-
-        (
-            hori_matching_graph,
-            hori_staberr2node,
-            hori_node2staberr,
-        ) = self.error_pairs2graph(hori_graph_error_pairs)
-        (
-            verti_matching_graph,
-            verti_staberr2node,
-            verti_node2staberr,
-        ) = self.error_pairs2graph(verti_graph_error_pairs)
-
-        hori_staberr_special_fault_id = hori_board2staberr[hori_board_prob_indx]
-        verti_staberr_special_fault_id = verti_board2staberr[verti_board_prob_indx]
-
-        # staberr, node info ONLY into DecoderGraph
-        decoder_graph = DecoderGraph(
-            hori_matching_graph,
-            verti_matching_graph,
-            hori_staberr_special_fault_id,
-            verti_staberr_special_fault_id,
-            verti_staberr2node,
-            verti_node2staberr,
-            hori_staberr2node,
-            hori_node2staberr,
-        )
+        return fundamental_stab_faces, fundamental_check_matrix, fund_error_pairs, fund_matching_graph
         
-        hori_corrections = [0]*self.no_bits
-        verti_corrections = [0]* self.no_bits
+        
+    #     hori_corrections = [0]*self.no_bits
+    #    # verti_corrections = [0]* self.no_bits
 
-        # Now, center things on zero
-        hori_stab_faces = self.shift_by_x(
-            self.shift_by_y(hori_stab_faces), power=(-self.L // 2) + 1
-        )
-        verti_stab_faces = self.shift_by_x(self.shift_by_y(hori_stab_faces))
+        # # Now, center things on zero
+        # hori_stab_faces.shape = self.no_bits
+        # hori_stab_faces = hori_shift_fund_to_zeroth(hori_stab_faces) 
+        
+        # hori_parity = hori_shift_fund_to_zeroth(hori_parity, is_check_mat=True)
+        
+        # # TODO could probably get away with just tracking special bit index
+        # hori_board2staberr = {} # not all board entries will have a stab error associated with them 
+        # for staberr, bindx in hori_staberr2board.items():
+        #     shifted_bindx = hori_shift_fund_to_zeroth(bindx) 
+        #     hori_staberr2board[staberr] = shifted_bindx
+        #     hori_board2staberr[shifted_bindx] = staberr 
+            
+        # hori_board_probe_indx =0 
+        # hori_staberr_probe_indx = hori_board2staberr[hori_board_prob_indx]
+        
+        # return hori_board_prob_indx, hori_staberr_probe_indx, hori_stab_faces, hori_parity, hori_board2staberr, hori_staberr_special_fault_id
+        
+            
+        # round_count = 0
 
-        for row in range(len(hori_parity)):
-            hori_parity[row] = self.shift_by_x(
-                self.shift_by_y(hori_parity[row]), power=(-self.L // 2) + 1
-            )
+        # for y_offset in range(self.L // 2):  # will wrap around to all bits
+        #     hori_stab_faces = self.shift_by_y(hori_stab_faces)
+        #     verti_stab_faces = self.shift_by_y(verti_stab_faces)
+        #     for x_offset in range(self.L):
+        #         round_count += 1
+        #         if self.no_bits > 10:
+        #             if (
+        #                 round_count % (self.no_bits // 10) == 0
+        #             ):  # log every additional 10% of board coverage
+        #                 self.logger.info(f" currently on round: {round_count}")
+        #                 self.logger.info(f"current board is {self.board}")
 
-        for row in range(len(verti_parity)):
-            verti_parity[row] = self.shift_by_x(
-                self.shift_by_y(verti_parity[row])
-            )  # 0th entry here should correspond to midpoint of bottom triangle and should be on 0th bit
+        #         # # make sure hori_syndrome matches TODO make sure nodes are what I think they are.
+        #         # hori_syndrome_post_graph = [0]*len(hori_syndrome_mat)
+        #         # for i in range(len(hori_syndrome_mat)):
+        #         #     if hori_syndrome_mat[i] == 1:
+        #         #         hori_syndrome_post_graph[hori_matching_graph.nodes().index(i) ] = 1
 
-        # TODO center special bit
-        # TODO center staberror2board
-        # TODO center board2staberror
+        #         # verti_syndrome_post_graph = [0] * len(verti_syndrome_mat)
+        #         # for i in range(len(verti_syndrome_mat)):
+        #         #     if verti_syndrome_mat[i] == 1:
+        #         #         verti_syndrome_post_graph[verti_matching_graph.nodes().index(i)] = 1
 
-        round_count = 0
+        #         hori_prediction = hori_matching.decode(hori_syndrome_mat)
+        #         verti_prediction = verti_matching.decode(verti_syndrome_mat)
 
-        for y_offset in range(self.L // 2):  # will wrap around to all bits
-            hori_stab_faces = self.shift_by_y(hori_stab_faces)
-            verti_stab_faces = self.shift_by_y(verti_stab_faces)
-            for x_offset in range(self.L):
-                round_count += 1
-                if self.no_bits > 10:
-                    if (
-                        round_count % (self.no_bits // 10) == 0
-                    ):  # log every additional 10% of board coverage
-                        self.logger.info(f" currently on round: {round_count}")
-                        self.logger.info(f"current board is {self.board}")
+        #         self.logger.info(
+        #             f"HORI: check matrix\n {hori_check_matrix}\n  syndrome:\n {hori_syndrome_mat}"
+        #         )
+        #         self.logger.info(
+        #             f"VERTI: check matrix\n {verti_check_matrix}\n  syndrome:\n {verti_syndrome_mat}"
+        #         )
 
-                # # make sure hori_syndrome matches TODO make sure nodes are what I think they are.
-                # hori_syndrome_post_graph = [0]*len(hori_syndrome_mat)
-                # for i in range(len(hori_syndrome_mat)):
-                #     if hori_syndrome_mat[i] == 1:
-                #         hori_syndrome_post_graph[hori_matching_graph.nodes().index(i) ] = 1
+        #         # take stabs to faces:
+        #         hori_correction = np.zeros(self.no_bits, dtype=int)
+        #         verti_correction = np.zeros(self.no_bits, dtype=int)
 
-                # verti_syndrome_post_graph = [0] * len(verti_syndrome_mat)
-                # for i in range(len(verti_syndrome_mat)):
-                #     if verti_syndrome_mat[i] == 1:
-                #         verti_syndrome_post_graph[verti_matching_graph.nodes().index(i)] = 1
+        #         for h in hori_prediction:
+        #             hori_correction[hori_parity_rows_to_faces[h]] = 1
 
-                hori_prediction = hori_matching.decode(hori_syndrome_mat)
-                verti_prediction = verti_matching.decode(verti_syndrome_mat)
+        #         for v in verti_prediction:
+        #             verti_correction[verti_parity_rows_to_faces[v]] = 1
 
-                self.logger.info(
-                    f"HORI: check matrix\n {hori_check_matrix}\n  syndrome:\n {hori_syndrome_mat}"
-                )
-                self.logger.info(
-                    f"VERTI: check matrix\n {verti_check_matrix}\n  syndrome:\n {verti_syndrome_mat}"
-                )
+        #         hboard = self.board ^ hori_correction  # apply correction
+        #         vboard = self.board ^ verti_correction
+        #         dboard = self.board ^ (
+        #             hori_correction * verti_correction
+        #         )  # only flip bits they agree should be flipped
 
-                # take stabs to faces:
-                hori_correction = np.zeros(self.no_bits, dtype=int)
-                verti_correction = np.zeros(self.no_bits, dtype=int)
+        #         # test new syndroms
 
-                for h in hori_prediction:
-                    hori_correction[hori_parity_rows_to_faces[h]] = 1
+        #         hcorsynd = [
+        #             (self._calc_syndrome(self.all_stabs_check_mat, hboard) == 1).sum(),
+        #             hboard,
+        #             "hori",
+        #         ]
+        #         vcorsynd = [
+        #             (self._calc_syndrome(self.all_stabs_check_mat, vboard) == 1).sum(),
+        #             vboard,
+        #             "verti",
+        #         ]
+        #         dcorsynd = [
+        #             (self._calc_syndrome(self.all_stabs_check_mat, dboard) == 1).sum(),
+        #             dboard,
+        #             "dcor",
+        #         ]
 
-                for v in verti_prediction:
-                    verti_correction[verti_parity_rows_to_faces[v]] = 1
+        #         opts = [hcorsynd, vcorsynd, dcorsynd]
 
-                hboard = self.board ^ hori_correction  # apply correction
-                vboard = self.board ^ verti_correction
-                dboard = self.board ^ (
-                    hori_correction * verti_correction
-                )  # only flip bits they agree should be flipped
+        #         winner = min(opts, key=lambda x: x[0])
+        #         self.board = winner[1]  # update board to best one
+        #         self.logger.info(
+        #             f"initial correction correction information: f{winner}"
+        #         )
 
-                # test new syndroms
-
-                hcorsynd = [
-                    (self._calc_syndrome(self.all_stabs_check_mat, hboard) == 1).sum(),
-                    hboard,
-                    "hori",
-                ]
-                vcorsynd = [
-                    (self._calc_syndrome(self.all_stabs_check_mat, vboard) == 1).sum(),
-                    vboard,
-                    "verti",
-                ]
-                dcorsynd = [
-                    (self._calc_syndrome(self.all_stabs_check_mat, dboard) == 1).sum(),
-                    dboard,
-                    "dcor",
-                ]
-
-                opts = [hcorsynd, vcorsynd, dcorsynd]
-
-                winner = min(opts, key=lambda x: x[0])
-                self.board = winner[1]  # update board to best one
-                self.logger.info(
-                    f"initial correction correction information: f{winner}"
-                )
-
-                if winner[0] == 0:
-                    return "yay!!"
+        #         if winner[0] == 0:
+        #             return "yay!!"

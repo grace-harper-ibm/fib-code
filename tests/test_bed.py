@@ -251,7 +251,17 @@ class FibCodeTest(unittest.TestCase):
     #     f = FibCode(8)
         
             
-        
+
+        """error pairs L=4 on fundamental  in (stab, stab, fundboard) notation 
+        (0, 1, 0)
+(0, 2, 1)
+(0, 3, 2)
+(1, 2, 4)
+(2, 3, 5)
+(0, 1, 5)
+(2, 3, 6)
+(1, 3, 7)
+        """
 
 if __name__ == "__main__":
     unittest.main()
