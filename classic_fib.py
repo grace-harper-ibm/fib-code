@@ -43,8 +43,9 @@ class FibCode:
         logging.basicConfig(
             filename="logs/" + f"L={L}_" + str(tt) + "fibcode_probs.log",
             encoding="utf-8",
-            level=logging.INFO,
+            level=logging.DEBUG,
         )
+        self.logger.info("NEW DECODING")
         self.L = L  # len
         self.no_cols = L
         self.no_rows = L // 2
@@ -408,7 +409,10 @@ class FibCode:
         
         prev_all_syndrome = (self._calc_syndrome(self.all_stabs_check_mat) == 1).sum()
         if prev_all_syndrome == 0:
-            return "yay! Started with 0 errors", []
+            if (self.board == self.original_code_board).all():
+                return "yay! Started with 0 errors", []
+            else:
+                return "sadness. original errors board syndrome is 0"
         
         cur_all_syndrome = prev_all_syndrome
         start_flag = True 
@@ -452,7 +456,7 @@ class FibCode:
                     round_count += 1
                     
                     self.logger.debug(f"PROBs:current fundy:\n{fundamental_stab_faces}")
-                    self.logger.debug(f"current board w error is: \n {self.board}")
+                    self.logger.debug(f"current board w error has size {self.board.shape} and is:\n {self.board}")
                     self.logger.debug(f"current_parity_check_mat:\n{parity_check_matrix}")
                     self.logger.debug(f"cur-syndrome-symm: {cur_syndrome}")
                     self.logger.debug(f"res                             is: {res}")
@@ -491,7 +495,7 @@ class FibCode:
             cur_all_syndrome = winner[0]
             self.board = winner[1]  # update board to best one
         
-        
+        self.logger.info("FINISHED DECODING")
         if winner[0] == 0:
             if (self.board == self.original_code_board).all():
                 return "yay! success", winner
