@@ -35,10 +35,12 @@ class FibCode:
     def __init__(
         self,
         L=8,
-        p=0.001,
+        original_code_board=None,
+        original_errors_board=None,
         decip=1000,
         pause=1000,
-        error_board_override=None,
+        p=0.01
+        #error_board_override=None,
     ):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
         logging.basicConfig(
@@ -46,22 +48,31 @@ class FibCode:
             encoding="utf-8",
             level=logging.INFO,
         )
-        self.logger = logging
         self.L = L  # len
         self.no_cols = L
         self.no_rows = L // 2
         self.no_bits = (L**2) // 2  # no bits
-        self.p = p  # probability of error on a given bit
         self.decip = decip
         self.pause = pause
+        
+        # backwards compatibility trash code -- fix this once we make sure codewords are preserved not just all 0s board 
+        if (original_code_board and original_code_board and p):
+            raise Exception("You can't give us a predetermined error board and a probability")
+        if original_code_board is None:
+            original_code_board = np.zeros(self.no_bits, dtype=int)
+        if original_errors_board is None:
+            original_errors_board = self.generate_errors(original_code_board, p)
+        self.logger = logging
+        
         # fund_sym
-        self.original_code_board = np.zeros(self.no_bits, dtype=int)
-        if error_board_override is not None:
-            if p > 0:
-                raise Exception("To use error_board_override, p must equal 0")
-            self.original_errors_board = error_board_override
-        else:
-            self.original_errors_board = self.generate_errors()
+        self.original_code_board = original_code_board
+        self.original_errors_board = original_errors_board
+        #if error_board_override is not None:
+        #    if p > 0:
+        #        raise Exception("To use error_board_override, p must equal 0")
+        #    self.original_errors_board = error_board_override
+        #else:
+        #    self.original_errors_board = self.generate_errors()
         self.original_code_board.shape = self.no_bits
         self.board = copy.deepcopy(self.original_errors_board)
         self.fundamental_symmetry = self._generate_init_symmetry()
@@ -98,12 +109,11 @@ class FibCode:
         self.logger.info(f" Hx {self.Hx}")
         self.logger.info(f" Hy is code {self.Hy}")
 
-    def set_code_word(self, bottom_row_start_sequence):
-        raise NotImplementedError("wish you were here...")
 
-    def generate_errors(self):
-        board = copy.deepcopy(self.original_code_board)
-        cutoff = self.p * self.decip
+    # useful but temporarily decommissioned 
+    def generate_errors(self, original_board, p):
+        board = copy.deepcopy(original_board)
+        cutoff = p * self.decip
         for i in range(self.no_bits):
             if random.randrange(1, self.decip + 1) <= cutoff:
                 board[i] ^= 1
