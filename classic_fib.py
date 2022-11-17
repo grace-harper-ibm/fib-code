@@ -8,16 +8,13 @@ import math
 import random
 from argparse import ArgumentError
 
-import networkx as nx
 import rustworkx as rx
 
 from decoder_graph import DecoderGraph
 
 tt = datetime.datetime.now()
 import numpy as np
-import pymatching as pm
 import rustworkx as rx
-from scipy.sparse import csc_matrix
 
 
 class FibCode:
@@ -39,7 +36,7 @@ class FibCode:
         original_errors_board=None,
         decip=1000,
         pause=1000,
-        p=0.01
+        p=None
         #error_board_override=None,
     ):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
@@ -56,11 +53,13 @@ class FibCode:
         self.pause = pause
         
         # backwards compatibility trash code -- fix this once we make sure codewords are preserved not just all 0s board 
-        if (original_code_board and original_code_board and p):
+        if (original_code_board is not None and original_code_board is not None and p is not None):
             raise Exception("You can't give us a predetermined error board and a probability")
         if original_code_board is None:
             original_code_board = np.zeros(self.no_bits, dtype=int)
         if original_errors_board is None:
+            if p is None:
+                raise Exception("need a probability to generate errors to make error board")
             original_errors_board = self.generate_errors(original_code_board, p)
         self.logger = logging
         
@@ -75,6 +74,7 @@ class FibCode:
         #    self.original_errors_board = self.generate_errors()
         self.original_code_board.shape = self.no_bits
         self.board = copy.deepcopy(self.original_errors_board)
+        self.board.shape = self.no_bits
         self.fundamental_symmetry = self._generate_init_symmetry()
         self.fundamental_symmetry.shape =  (self.no_rows, self.no_cols)
         (
@@ -228,20 +228,22 @@ class FibCode:
                 rect_board[row][bit] = new_val
         return rect_board
 
-    def _generate_init_code_word(self, start_arr=None):
-        if start_arr and sum(start_arr) != 1:
+    @classmethod
+    def generate_init_code_word(cls, L, start_arr=None):
+        if start_arr is not None and sum(start_arr) != 1:
             raise ArgumentError(f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}")
         # generates from bottom row up 
-        rect_board = np.zeros((self.L // 2, self.L), dtype=int)
+        rect_board = np.zeros((L // 2, L), dtype=int)
         if start_arr is None:
-            start_arr = np.zeros(self.L, dtype=int)
-            start_arr[(self.L // 2) - 1] = 1
-        for row in range(self.L // 2, 1, -1):
-            for bit in range(self.L):
+            start_arr = np.zeros(L, dtype=int)
+            start_arr[((L-1) // 2) ] = 1
+        rect_board[(L//2) - 1] = start_arr
+        for row in range((L // 2) - 2, -1, -1):
+            for bit in range(L):
                 new_val = (
-                    rect_board[row + 1][(bit - 1) % self.L]
-                    ^ rect_board[row + 1][(bit) % self.L]
-                    ^ rect_board[row + 1][(bit + 1) % self.L]
+                    rect_board[row + 1][(bit - 1) % L]
+                    ^ rect_board[row + 1][(bit) % L]
+                    ^ rect_board[row + 1][(bit + 1) % L]
                 )
                 rect_board[row][bit] = new_val
         return rect_board
