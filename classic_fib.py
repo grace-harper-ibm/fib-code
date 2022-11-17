@@ -491,6 +491,9 @@ class FibCode:
         
         
         if winner[0] == 0:
-            return "yay! success", winner
-        else:
-            return f"sadness still had this syndrome: {winner[0]}", winner 
+            if (self.board == self.original_code_board).all():
+                return "yay! success", winner
+            else:
+                return f"sadness. bad correction", winner 
+        
+        return f"sadness. Syndrome: {winner[0]}", winner 
