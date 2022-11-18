@@ -49,7 +49,7 @@ class FibCode:
         tt = datetime.datetime.now()
         unique_log_info = f"L={self.L}_" + str(tt) 
         self.unique_log_id = name + "_" + unique_log_info
-        self.logger = self.set_up_custom_class_logger(name,log_level=log_level)
+        self.logger = self._set_up_custom_class_logger(log_level=log_level)
         self.logger.info("NEW DECODING")
         
         # backwards compatibility code -- fix this once we make sure codewords are preserved not just all 0s board 
@@ -109,10 +109,10 @@ class FibCode:
         self.logger.info(f" Hy is code {self.Hy}")
 
 
-    def set_up_custom_class_logger(self, log_level=logging.DEBUG):
+    def _set_up_custom_class_logger(self, log_level=logging.DEBUG):
         # Create a custom logger
-        logger = logging.getLogger(self.unique_log_info) # TODO -- find better way to log output 
-        f_handler = logging.FileHandler(os.path.join("logs", self.unique_log_info + "fibcode_probs.log")) 
+        logger = logging.getLogger(self.unique_log_id) # TODO -- find better way to log output 
+        f_handler = logging.FileHandler(os.path.join("logs", self.unique_log_id + "fibcode_probs.log")) 
         f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         f_handler.setFormatter(f_format)
         f_handler.setLevel(log_level)
@@ -429,7 +429,7 @@ class FibCode:
         meta_round_count = 0
         round_count = 0
         fundamental_stab_faces.shape = self.no_bits
-        while (cur_all_syndrome < prev_all_syndrome or start_flag ):
+        while ((cur_all_syndrome < prev_all_syndrome or start_flag) and cur_all_syndrome != 0 ):
             start_flag = False  
             prev_all_syndrome = cur_all_syndrome
             
@@ -466,7 +466,6 @@ class FibCode:
                     round_count += 1
                     
                     self.logger.debug(f"PROBs:current fundy:\n{fundamental_stab_faces}")
-                    self.logger.debug(f"current board w error has size {self.board.shape} and is:\n {self.board}")
                     self.logger.debug(f"current_parity_check_mat:\n{parity_check_matrix}")
                     self.logger.debug(f"cur-syndrome-symm: {cur_syndrome}")
                     self.logger.debug(f"res                             is: {res}")
@@ -476,7 +475,7 @@ class FibCode:
             
             self.logger.debug(f"Meta-Round {meta_round_count}:")
             self.logger.debug(f"h_correction: {h_correction}\nv_correction:{v_correction}")
-            self.logger.debug(f"board is {self.board}") 
+            
             meta_round_count += 1 
             d_correction = h_correction * v_correction
             hboard = self.board ^ h_correction  # apply correction
@@ -504,6 +503,7 @@ class FibCode:
             winner = min(opts, key=lambda x: x[0])
             cur_all_syndrome = winner[0]
             self.board = winner[1]  # update board to best one
+            self.logger.info(f"Updated board is: \n{self.board}")
         
         self.logger.info("FINISHED DECODING")
         
