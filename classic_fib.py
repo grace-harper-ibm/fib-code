@@ -5,16 +5,14 @@ import copy
 import datetime
 import logging
 import math
+import os
 import random
 from argparse import ArgumentError
 
+import numpy as np
 import rustworkx as rx
 
 from decoder_graph import DecoderGraph
-
-tt = datetime.datetime.now()
-import numpy as np
-import rustworkx as rx
 
 
 class FibCode:
@@ -36,24 +34,25 @@ class FibCode:
         original_errors_board=None,
         decip=1000,
         pause=1000,
-        p=None
-        #error_board_override=None,
-    ):
+        p=None,
+        name="",
+        log_level=logging.DEBUG # TODO, usually shouldn't be putting log info in a class' init
+        ):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
-        logging.basicConfig(
-            filename="logs/" + f"L={L}_" + str(tt) + "fibcode_probs.log",
-            encoding="utf-8",
-            level=logging.DEBUG,
-        )
-        self.logger.info("NEW DECODING")
+        
         self.L = L  # len
         self.no_cols = L
         self.no_rows = L // 2
         self.no_bits = (L**2) // 2  # no bits
         self.decip = decip
         self.pause = pause
+        tt = datetime.datetime.now()
+        unique_log_info = f"L={self.L}_" + str(tt) 
+        self.unique_log_id = name + "_" + unique_log_info
+        self.logger = self.set_up_custom_class_logger(name,log_level=log_level)
+        self.logger.info("NEW DECODING")
         
-        # backwards compatibility trash code -- fix this once we make sure codewords are preserved not just all 0s board 
+        # backwards compatibility code -- fix this once we make sure codewords are preserved not just all 0s board 
         if (original_code_board is not None and original_code_board is not None and p is not None):
             raise Exception("You can't give us a predetermined error board and a probability")
         if original_code_board is None:
@@ -62,7 +61,6 @@ class FibCode:
             if p is None:
                 raise Exception("need a probability to generate errors to make error board")
             original_errors_board = self.generate_errors(original_code_board, p)
-        self.logger = logging
         
         # fund_sym
         self.original_code_board = original_code_board
@@ -110,6 +108,18 @@ class FibCode:
         self.logger.info(f" Hx {self.Hx}")
         self.logger.info(f" Hy is code {self.Hy}")
 
+
+    def set_up_custom_class_logger(self, log_level=logging.DEBUG):
+        # Create a custom logger
+        logger = logging.getLogger(self.unique_log_info) # TODO -- find better way to log output 
+        f_handler = logging.FileHandler(os.path.join("logs", self.unique_log_info + "fibcode_probs.log")) 
+        f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        f_handler.setFormatter(f_format)
+        f_handler.setLevel(log_level)
+        logger.addHandler(f_handler)
+        logger.setLevel(log_level)
+        return logger 
+        
 
     # useful but temporarily decommissioned 
     def generate_errors(self, original_board, p):
@@ -496,6 +506,8 @@ class FibCode:
             self.board = winner[1]  # update board to best one
         
         self.logger.info("FINISHED DECODING")
+        
+        # bad practice, fix this
         if winner[0] == 0:
             if (self.board == self.original_code_board).all():
                 return "yay! success", winner
