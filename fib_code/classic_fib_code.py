@@ -12,10 +12,10 @@ from argparse import ArgumentError
 import numpy as np
 import rustworkx as rx
 
-from decoder_graph import DecoderGraph
+from fib_code.decoder_graph import DecoderGraph
 
 
-class FibCode:
+class ClassicFibCode:
     """
     self.board =
     [L*(L//2 - 1)....          ((L**2)//2) - 1]
@@ -36,7 +36,8 @@ class FibCode:
         pause=1000,
         p=None,
         name="",
-        log_level=logging.DEBUG # TODO, usually shouldn't be putting log info in a class' init
+        log_level=logging.NOTSET # TODO, usually shouldn't be putting log info in a class' init,
+        
         ):
         assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
         
@@ -110,9 +111,13 @@ class FibCode:
 
 
     def _set_up_custom_class_logger(self, log_level=logging.DEBUG):
+        if log_level == logging.NOTSET:
+            logger = logging.getLogger(self.unique_log_id) # TODO -- find better way to log output 
+            logger.setLevel(log_level)
+            return logger
         # Create a custom logger
         logger = logging.getLogger(self.unique_log_id) # TODO -- find better way to log output 
-        f_handler = logging.FileHandler(os.path.join("logs", self.unique_log_id + "fibcode_probs.log")) 
+        f_handler = logging.FileHandler(os.path.join("logs", self.unique_log_id + "ClassicFibCode_probs.log")) 
         f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         f_handler.setFormatter(f_format)
         f_handler.setLevel(log_level)

@@ -1,0 +1,8 @@
+LICENSE.txt
+README.md
+setup.py
+fib_code.egg-info/PKG-INFO
+fib_code.egg-info/SOURCES.txt
+fib_code.egg-info/dependency_links.txt
+fib_code.egg-info/requires.txt
+fib_code.egg-info/top_level.txt

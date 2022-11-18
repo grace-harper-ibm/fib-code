@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from classic_fib import FibCode
+from fib_code.classic_fib import FibCode
 
 
 class FibCodeTest(unittest.TestCase):
