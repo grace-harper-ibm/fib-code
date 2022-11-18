@@ -553,3 +553,5 @@ class ClassicFibCode:
                 return f"sadness. bad correction", winner
 
         return f"sadness. Syndrome: {winner[0]}", winner
+
+    print("sdfdfs")
