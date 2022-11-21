@@ -2,20 +2,22 @@
 import copy
 import math
 import unittest
+from fib_code.error_generator import generate_swath_error
+from fib_code.code_generator import generate_init_code_word
+from fib_code.classic_fib_code import ClassicClassicFibCode
 
 import numpy as np
 
-from fib_code.classic_fib import FibCode
 
 
-class FibCodeTest(unittest.TestCase):
+class ClassicFibCodeTest(unittest.TestCase):
     """sanity checks"""
 
     def test_basic(self):
-        f = FibCode(8)
+        f = ClassicFibCode(8)
 
     def test_bit_representation_trans(self):
-        f = FibCode(32)  # L = 32
+        f = ClassicFibCode(32)  # L = 32
         trans_tests = [
             [(0, 0), 0],
             [(4, 1), 129],
@@ -41,7 +43,7 @@ class FibCodeTest(unittest.TestCase):
 
     def test_x_shift(self):
         for L in [4, 8, 16, 32]:
-            f = FibCode(L)
+            f = ClassicFibCode(L)
             input = np.array(list(range((L**2) // 2)))
 
             # shift_by_x
@@ -67,7 +69,7 @@ class FibCodeTest(unittest.TestCase):
 
     def test_x_shift_multi(self):
         L = 8
-        f = FibCode(L)
+        f = ClassicFibCode(L)
         several_valued = np.arange(0, (L**2) // 2)
 
         sol = np.arange(0, (L**2) // 2)
@@ -89,7 +91,7 @@ class FibCodeTest(unittest.TestCase):
 
     def test_y_shift(self):
         for L in [4, 8, 16, 32]:
-            f = FibCode(L)
+            f = ClassicFibCode(L)
             input = np.array(list(range((L**2) // 2)))
 
             shiftbyminus1 = np.array(
@@ -130,7 +132,7 @@ class FibCodeTest(unittest.TestCase):
 
     def test_y_shift_multi(self):
         L = 8
-        f = FibCode(L)
+        f = ClassicFibCode(L)
         several_valued = np.arange(0, (L**2) // 2)
         sol = np.arange(0, ((L**2) // 2) - L)
         new_top_row = np.arange(((L**2) // 2) - L, (L**2) // 2)
@@ -151,7 +153,7 @@ class FibCodeTest(unittest.TestCase):
                 [0, 0, 1, 0, 0, 1, 1, 1],
             ]
         )
-        f = FibCode(4)
+        f = ClassicFibCode(4)
         startarr = [
             0,
         ] * 4
@@ -166,7 +168,7 @@ class FibCodeTest(unittest.TestCase):
         assert (fcheck == fcheck_sol).all(), f"\n {fcheck}\n should be\n{fcheck_sol}"
 
         size32 = (32**2) // 2
-        f = FibCode(32)
+        f = ClassicFibCode(32)
         startarr = [
             0,
         ] * 32
@@ -231,7 +233,7 @@ class FibCodeTest(unittest.TestCase):
         # # does this even work as I think?
         # def test_all_zeros_board(self):
         #     L = 32
-        #     f = FibCode(L, p=0, code_bottom_row_start_sequence=np.zeros(32))
+        #     f = ClassicFibCode(L, p=0, code_bottom_row_start_sequence=np.zeros(32))
         #     f.decode_fib_code()
         #     expected_size = ((L**2) // 2,)
         #     assert (
@@ -243,11 +245,11 @@ class FibCodeTest(unittest.TestCase):
 
         # def test_decoding_finishes(self):
         #     L = 8
-        #     f = FibCode(L, p=0.05)
+        #     f = ClassicFibCode(L, p=0.05)
         #     f.decode_fib_code()
 
         # def test_generate_error_pairs(self):
-        #     f = FibCode(8)
+        #     f = ClassicFibCode(8)
 
         """error pairs L=4 on fundamental  in (stab, stab, fundboard) notation 
         (0, 1, 0)
@@ -259,6 +261,23 @@ class FibCodeTest(unittest.TestCase):
 (2, 3, 6)
 (1, 3, 7)
         """
+
+def test_make_errors(self):
+    [[1 1 0 1 0 1 1 0]
+ [0 1 0 1 0 1 0 0]
+ [0 0 1 1 1 0 0 0]
+ [0 0 0 1 0 0 0 0]]
+
+
+[[1 1 0 0 0 0 0 0]
+ [1 1 0 0 0 0 0 0]
+ [1 1 0 0 0 0 0 0]
+ [1 1 0 0 0 0 0 0]]
+
+[[0 0 0 1 0 1 1 0]
+ [1 0 0 1 0 1 0 0]
+ [1 1 1 1 1 0 0 0]
+ [1 1 0 1 0 0 0 0]]
 
 
 if __name__ == "__main__":

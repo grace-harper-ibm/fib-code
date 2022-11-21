@@ -1,6 +1,10 @@
 LICENSE.txt
 README.md
 setup.py
+fib_code/__init__.py
+fib_code/classic_fib_code.py
+fib_code/decoder_graph.py
+fib_code/error_generator.py
 fib_code.egg-info/PKG-INFO
 fib_code.egg-info/SOURCES.txt
 fib_code.egg-info/dependency_links.txt
