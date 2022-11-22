@@ -5,7 +5,9 @@ import unittest
 
 import numpy as np
 
-from fib_code.classic_fib_code import ClassicFibCode
+from fib_code.error_generator import generate_swath_error
+from fib_code.code_generator import generate_init_code_word
+from fib_code.classic_fib_decoder import ClassicFibDecoder import ClassicFibCode
 from fib_code.code_generator import generate_init_code_word
 from fib_code.error_generator import generate_swath_error
 

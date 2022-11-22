@@ -15,7 +15,7 @@ import rustworkx as rx
 from fib_code.decoder_graph import DecoderGraph
 
 
-class ClassicFibCode:
+class ClassicFibDecoder:
     """
     self.board =
     [L*(L//2 - 1)....          ((L**2)//2) - 1]
@@ -29,58 +29,25 @@ class ClassicFibCode:
 
     def __init__(
         self,
-        L=8,
-        original_code_board=None,
-        original_errors_board=None,
-        decip=1000,
-        pause=1000,
-        p=None,
+        original_errorword,
+        logger,
+        halt=9,
         name="",
-        log_level=logging.NOTSET,  # TODO, usually shouldn't be putting log info in a class' init,
     ):
-        assert math.log2(L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
 
-        self.L = L  # len
-        self.no_cols = L
-        self.no_rows = L // 2
-        self.no_bits = (L**2) // 2  # no bits
-        self.decip = decip
-        self.pause = pause
-        tt = datetime.datetime.now()
-        unique_log_info = f"L={self.L}_" + str(tt)
-        self.unique_log_id = name + "_" + unique_log_info
-        self.logger = self._set_up_custom_class_logger(log_level=log_level)
-        self.logger.info("NEW DECODING")
+        self.L = len(original_errorword[0])  # len
+        assert math.log2(self.L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
+        self.no_cols = self.L
+        self.no_rows = self.L // 2
+        self.no_bits = (self.L**2) // 2  # no bits
+        self.halt = halt
+        self.name = name
 
-        # backwards compatibility code -- fix this once we make sure codewords are preserved not just all 0s board
-        if (
-            original_code_board is not None
-            and original_code_board is not None
-            and p is not None
-        ):
-            raise Exception(
-                "You can't give us a predetermined error board and a probability"
-            )
-        if original_code_board is None:
-            original_code_board = np.zeros(self.no_bits, dtype=int)
-        if original_errors_board is None:
-            if p is None:
-                raise Exception(
-                    "need a probability to generate errors to make error board"
-                )
-            original_errors_board = self.generate_errors(original_code_board, p)
-
+        self.logger = logger
         # fund_sym
-        self.original_code_board = original_code_board
-        self.original_errors_board = original_errors_board
-        # if error_board_override is not None:
-        #    if p > 0:
-        #        raise Exception("To use error_board_override, p must equal 0")
-        #    self.original_errors_board = error_board_override
-        # else:
-        #    self.original_errors_board = self.generate_errors()
-        self.original_code_board.shape = self.no_bits
-        self.board = copy.deepcopy(self.original_errors_board)
+        self.original_errorword = original_errorword
+
+        self.board = copy.deepcopy(self.original_errorword)
         self.board.shape = self.no_bits
         self.fundamental_symmetry = self._generate_init_symmetry()
         self.fundamental_symmetry.shape = (self.no_rows, self.no_cols)
@@ -98,81 +65,45 @@ class ClassicFibCode:
         self.Hx = self._generate_plus_x_trans_matrix()
         self.Hy = self._generate_plus_y_trans_matrix()
 
-        self.all_stab_faces = np.ones((self.L // 2, L), dtype=int)
+        self.fundamental_stab_faces = copy.deepcopy(self.fundamental_symmetry)
+        self.fundamental_hori_probe_indx = self.no_bits - (self.L // 2) - 1
+        self.fundamental_verti_probe_indx = self.no_bits - 1
+        self.fundamental_stab_faces.shape = (self.L // 2, self.L)  # TODO should work
+        (
+            self.fundamental_check_matrix,
+            self.board2stab,
+        ) = self.generate_check_matrix_from_faces(self.fundamental_stab_faces)
+        fund_error_pairs = self.generate_all_possible_error_syndromes(
+            self.fundamental_check_matrix
+        )
+        self.fund_matching_graph, self.fundstab2node = self.error_pairs2graph(
+            fund_error_pairs
+        )
+
+        # Develop a generic decoder w/ fundamental_hori_probe_indx & fundamental_verti_probe_indx as anchors for indexing
+        self.decoder = DecoderGraph(
+            self.fund_matching_graph,
+            self.fundamental_hori_probe_indx,
+            self.fundamental_verti_probe_indx,
+            self.fundstab2node,
+        )
+        self.all_stab_faces = np.ones((self.L // 2, self.L), dtype=int)
         (
             self.all_stabs_check_mat,
             self.all_stabs_parity_rows_to_faces,
         ) = self.generate_check_matrix_from_faces(self.all_stab_faces)
 
-        self.logger.info(f" original code baord is  {self.original_code_board}")
-
-        self.logger.info(f" original_errors_board is  {self.original_errors_board}")
+        self.logger.info(f" original_errorword is  {self.original_errorword}")
         self.logger.info(f" error board is code {self.board}")
         self.logger.info(f" initial symmetry is: {self.fundamental_symmetry}")
         self.logger.info(
             f"fundamental_stabilizer_parity_check_matrix is : {self.fundamental_stabilizer_parity_check_matrix}"
         )
-        # self.logger.info(f"fundamental_single_error_syndromes is : {self.fundamental_single_error_syndromes}")
+        self.logger.info(
+            f"fundamental_single_error_syndromes is : {self.fundamental_single_error_syndromes}"
+        )
         self.logger.info(f" Hx {self.Hx}")
         self.logger.info(f" Hy is code {self.Hy}")
-
-    def print_current_code(self):
-        cshape = self.board.shape
-        self.board.shape = (self.L // 2, self.L)
-        print(self.board)
-        self.board.shape = cshape
-
-    def print_uncorrupted_code(self):
-        cshape = self.original_code_board.shape
-        self.original_code_board.shape = (self.L // 2, self.L)
-        print(self.original_code_board)
-        self.original_code_board.shape = cshape
-
-    def print_error_board(self):
-        cshape = self.original_errors_board.shape
-        self.original_errors_board.shape = (self.L // 2, self.L)
-        print(self.original_errors_board)
-        self.original_errors_board.shape = cshape
-
-    def mprintboard(matrix, L=4):
-        if matrix.shape == ((L**2) // 2,):
-            matrix.shape = (L // 2, L)
-            print("\n".join(["\t".join([str(cell) for cell in row]) for row in matrix]))
-            matrix.shape = ((L**2) // 2,)
-        else:
-            print("\n".join(["\t".join([str(cell) for cell in row]) for row in matrix]))
-
-    def _set_up_custom_class_logger(self, log_level=logging.DEBUG):
-        if log_level == logging.NOTSET:
-            logger = logging.getLogger(
-                self.unique_log_id
-            )  # TODO -- find better way to log output
-            logger.setLevel(log_level)
-            return logger
-        # Create a custom logger
-        logger = logging.getLogger(
-            self.unique_log_id
-        )  # TODO -- find better way to log output
-        f_handler = logging.FileHandler(
-            os.path.join("logs", self.unique_log_id + "ClassicFibCode_probs.log")
-        )  # TODO remove hardcoded logs, make init resonsible for creating log dir tho
-        f_format = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        f_handler.setFormatter(f_format)
-        f_handler.setLevel(log_level)
-        logger.addHandler(f_handler)
-        logger.setLevel(log_level)
-        return logger
-
-    # useful but temporarily decommissioned
-    def generate_errors(self, original_board, p):
-        board = copy.deepcopy(original_board)
-        cutoff = p * self.decip
-        for i in range(self.no_bits):
-            if random.randrange(1, self.decip + 1) <= cutoff:
-                board[i] ^= 1
-        return board
 
     def bit_to_rc(self, bit):
         """
@@ -264,49 +195,6 @@ class ClassicFibCode:
             H[new_bit][b] = 1
         return H
 
-    def _generate_init_symmetry(self, start_arr=None):
-        if start_arr and sum(start_arr) != 1:
-            raise ArgumentError(
-                f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}"
-            )
-        # fundamental symmetries start from the top instead of the bottom because numpy
-        rect_board = np.zeros((self.L // 2, self.L), dtype=int)
-        if start_arr is None:
-            start_arr = np.zeros(self.L, dtype=int)
-            start_arr[(self.L // 2) - 1] = 1
-        rect_board[0] = start_arr
-        for row in range(1, self.L // 2):
-            for bit in range(self.L):
-                new_val = (
-                    rect_board[row - 1][(bit - 1) % self.L]
-                    ^ rect_board[row - 1][(bit) % self.L]
-                    ^ rect_board[row - 1][(bit + 1) % self.L]
-                )
-                rect_board[row][bit] = new_val
-        return rect_board
-
-    @classmethod
-    def generate_init_code_word(cls, L, start_arr=None):
-        if start_arr is not None and sum(start_arr) != 1:
-            raise ArgumentError(
-                f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}"
-            )
-        # generates from bottom row up
-        rect_board = np.zeros((L // 2, L), dtype=int)
-        if start_arr is None:
-            start_arr = np.zeros(L, dtype=int)
-            start_arr[((L - 1) // 2)] = 1
-        rect_board[(L // 2) - 1] = start_arr
-        for row in range((L // 2) - 2, -1, -1):
-            for bit in range(L):
-                new_val = (
-                    rect_board[row + 1][(bit - 1) % L]
-                    ^ rect_board[row + 1][(bit) % L]
-                    ^ rect_board[row + 1][(bit + 1) % L]
-                )
-                rect_board[row][bit] = new_val
-        return rect_board
-
     def shift_by_x(self, bitarr, power=1):
         # shifts every entry in board matrix right by 1 w/ wrap around
         power = power % self.L
@@ -357,6 +245,27 @@ class ClassicFibCode:
         sol = sol.astype(int)
         return sol
 
+    def _generate_init_symmetry(self, start_arr=None):
+        if start_arr and sum(start_arr) != 1:
+            raise ArgumentError(
+                f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}"
+            )
+        # fundamental symmetries start from the top instead of the bottom because numpy
+        rect_board = np.zeros((self.L // 2, self.L), dtype=int)
+        if start_arr is None:
+            start_arr = np.zeros(self.L, dtype=int)
+            start_arr[(self.L // 2) - 1] = 1
+        rect_board[0] = start_arr
+        for row in range(1, self.L // 2):
+            for bit in range(self.L):
+                new_val = (
+                    rect_board[row - 1][(bit - 1) % self.L]
+                    ^ rect_board[row - 1][(bit) % self.L]
+                    ^ rect_board[row - 1][(bit + 1) % self.L]
+                )
+                rect_board[row][bit] = new_val
+        return rect_board
+
     def generate_check_matrix_from_faces(self, stab_faces):
         """x
         STABS:           xxx
@@ -403,7 +312,9 @@ class ClassicFibCode:
 
         for b in range(no_bits):
             if no_bits > 10 and b % (no_bits // 10) == 0:
-                self.logger.info(f"on bit: {b} and error set looks like: {error_pairs}")
+                self.logger.debug(
+                    f"on bit: {b} and error set looks like: {error_pairs}"
+                )
 
             ## set up new single error
             # clear prev_bit
@@ -449,72 +360,53 @@ class ClassicFibCode:
     def decode_fib_code(self):
         # generate graphs and mappings
 
-        fundamental_stab_faces = copy.deepcopy(self.fundamental_symmetry)
-        fundamental_hori_probe_indx = self.no_bits - (self.L // 2) - 1
-        fundamental_verti_probe_indx = self.no_bits - 1
-        fundamental_stab_faces.shape = (self.L // 2, self.L)  # TODO should work
-        fundamental_check_matrix, board2stab = self.generate_check_matrix_from_faces(
-            fundamental_stab_faces
-        )
-        fund_error_pairs = self.generate_all_possible_error_syndromes(
-            fundamental_check_matrix
-        )
-        fund_matching_graph, fundstab2node = self.error_pairs2graph(fund_error_pairs)
-
-        self.decoder = DecoderGraph(
-            fund_matching_graph,
-            fundamental_hori_probe_indx,
-            fundamental_verti_probe_indx,
-            fundstab2node,
-        )
-
         h_correction = np.zeros(self.no_bits, dtype=int)
         v_correction = np.zeros(self.no_bits, dtype=int)
-        parity_check_matrix = copy.deepcopy(fundamental_check_matrix)
-        hori_probe_indx = fundamental_hori_probe_indx
-        verti_probe_indx = fundamental_verti_probe_indx
+        parity_check_matrix = copy.deepcopy(self.fundamental_check_matrix)
+        hori_probe_indx = self.fundamental_hori_probe_indx
+        verti_probe_indx = self.fundamental_verti_probe_indx
 
-        prev_all_syndrome = (self._calc_syndrome(self.all_stabs_check_mat) == 1).sum()
-        if prev_all_syndrome == 0:
-            if (self.board == self.original_code_board).all():
-                return "yay! Started with 0 errors", []
-            else:
-                return "sadness. original errors board syndrome is 0"
-
-        cur_all_syndrome = prev_all_syndrome
+        cur_all_syndrome = prev_all_syndrome = (
+            (self._calc_syndrome(self.all_stabs_check_mat, self.board) == 1).sum(),
+        )
         start_flag = True
         meta_round_count = 0
         round_count = 0
-        fundamental_stab_faces.shape = self.no_bits
+        self.fundamental_stab_faces.shape = self.no_bits
         while (
-            cur_all_syndrome < prev_all_syndrome or start_flag
-        ) and cur_all_syndrome != 0:
+            (cur_all_syndrome < prev_all_syndrome or start_flag)
+            and cur_all_syndrome != 0
+            and meta_round_count < self.halt
+        ):
             start_flag = False
             prev_all_syndrome = cur_all_syndrome
 
             for y_offset in range(self.L // 2):  # will wrap around to all bits
                 parity_check_matrix = self.shift_parity_mat_by_y(parity_check_matrix)
-                fundamental_stab_faces = self.shift_by_y(fundamental_stab_faces)
+                self.fundamental_stab_faces = self.shift_by_y(
+                    self.fundamental_stab_faces
+                )
                 hori_probe_indx = self.shift_by_y_scalar(hori_probe_indx)
                 verti_probe_indx = self.shift_by_y_scalar(verti_probe_indx)
 
                 for x_offset in range(self.L):
-                    self.logger.info(f"\n\ncurrently on round:\n{round_count}")
                     parity_check_matrix = self.shift_parity_mat_by_x(
                         parity_check_matrix
                     )
-                    fundamental_stab_faces = self.shift_by_x(fundamental_stab_faces)
+                    self.fundamental_stab_faces = self.shift_by_x(
+                        self.fundamental_stab_faces
+                    )
                     hori_probe_indx = self.shift_by_x_scalar(hori_probe_indx)
                     verti_probe_indx = self.shift_by_x_scalar(verti_probe_indx)
 
-                    fundamental_stab_faces.shape = (self.L // 2, self.L)
-                    fundamental_stab_faces.shape = self.no_bits
+                    self.fundamental_stab_faces.shape = (self.L // 2, self.L)
+                    self.fundamental_stab_faces.shape = self.no_bits
 
                     cur_syndrome = self._calc_syndrome(parity_check_matrix)
                     # convert syndrome to node
                     cur_node_syndrome = [0] * len(cur_syndrome)
                     for stabindx, value in enumerate(cur_syndrome):
-                        nodeindx = fundstab2node[stabindx]
+                        nodeindx = self.fundstab2node[stabindx]
                         cur_node_syndrome[nodeindx] = value  # TODO is right?
                     hcorval, vcorval, res = self.decoder.decode_prob(cur_node_syndrome)
 
@@ -523,7 +415,9 @@ class ClassicFibCode:
 
                     round_count += 1
 
-                    self.logger.debug(f"PROBs:current fundy:\n{fundamental_stab_faces}")
+                    self.logger.debug(
+                        f"PROBs:current fundy:\n{self.fundamental_stab_faces}"
+                    )
                     self.logger.debug(
                         f"current_parity_check_mat:\n{parity_check_matrix}"
                     )
@@ -535,8 +429,8 @@ class ClassicFibCode:
                     )
                     self.logger.debug(f"h_corr: {h_correction}\nv_corr:{v_correction}")
 
-            self.logger.debug(f"Meta-Round {meta_round_count}:")
-            self.logger.debug(
+            self.logger.info(f"Meta-Round {meta_round_count}:")
+            self.logger.info(
                 f"h_correction: {h_correction}\nv_correction:{v_correction}"
             )
 
@@ -568,13 +462,5 @@ class ClassicFibCode:
             cur_all_syndrome = winner[0]
             self.board = winner[1]  # update board to best one
             self.logger.info(f"Updated board is: \n{self.board}")
+
         self.logger.info("FINISHED DECODING")
-
-        # bad practice, fix this
-        if winner[0] == 0:
-            if (self.board == self.original_code_board).all():
-                return "yay! success", winner
-            else:
-                return f"sadness. bad correction", winner
-
-        return f"sadness. Syndrome: {winner[0]}", winner
