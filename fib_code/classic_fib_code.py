@@ -116,6 +116,32 @@ class ClassicFibCode:
         self.logger.info(f" Hx {self.Hx}")
         self.logger.info(f" Hy is code {self.Hy}")
 
+    def print_current_code(self):
+        cshape = self.board.shape
+        self.board.shape = (self.L // 2, self.L)
+        print(self.board)
+        self.board.shape = cshape
+
+    def print_uncorrupted_code(self):
+        cshape = self.original_code_board.shape
+        self.original_code_board.shape = (self.L // 2, self.L)
+        print(self.original_code_board)
+        self.original_code_board.shape = cshape
+
+    def print_error_board(self):
+        cshape = self.original_errors_board.shape
+        self.original_errors_board.shape = (self.L // 2, self.L)
+        print(self.original_errors_board)
+        self.original_errors_board.shape = cshape
+
+    def mprintboard(matrix, L=4):
+        if matrix.shape == ((L**2) // 2,):
+            matrix.shape = (L // 2, L)
+            print("\n".join(["\t".join([str(cell) for cell in row]) for row in matrix]))
+            matrix.shape = ((L**2) // 2,)
+        else:
+            print("\n".join(["\t".join([str(cell) for cell in row]) for row in matrix]))
+
     def _set_up_custom_class_logger(self, log_level=logging.DEBUG):
         if log_level == logging.NOTSET:
             logger = logging.getLogger(
