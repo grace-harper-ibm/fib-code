@@ -30,11 +30,11 @@ class ClassicFibDecoder:
     def __init__(
         self,
         original_errorword,
-        logger,
+        logger: logging.Logger,
         halt=9,
         name="",
     ):
-
+        self.logger = logger
         self.L = len(original_errorword[0])  # len
         assert math.log2(self.L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
         self.no_cols = self.L
@@ -43,7 +43,6 @@ class ClassicFibDecoder:
         self.halt = halt
         self.name = name
 
-        self.logger = logger
         # fund_sym
         self.original_errorword = original_errorword
 
@@ -358,6 +357,7 @@ class ClassicFibDecoder:
         return graph, stab2node
 
     def decode_fib_code(self):
+        self.logger.info("\n\n\nBEGINNING DECODING")
         # generate graphs and mappings
 
         h_correction = np.zeros(self.no_bits, dtype=int)
