@@ -8,6 +8,7 @@ class DecoderGraph:
     def __init__(
         self, matching_graph, hori_probe_fault_id, verti_probe_fault_id, stab2node
     ) -> None:
+
         self.matching_decoder = pm.Matching(matching_graph)
         self.matching_graph = matching_graph
         self.hori_probe_fault_id = hori_probe_fault_id
