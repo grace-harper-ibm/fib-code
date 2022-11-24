@@ -2,8 +2,10 @@
 # https://www.youtube.com/watch?v=h1cevveAaPs
 # https://www.youtube.com/watch?v=rZjpsT7VgNU
 import copy
+import logging
 import math
 from argparse import ArgumentError
+from typing import Set
 
 import numpy as np
 import rustworkx as rx
@@ -25,11 +27,19 @@ class ClassicFibDecoder:
 
     def __init__(
         self,
-        original_errorword,
-        logger,
-        halt=9,
-        name="",
+        original_errorword: np.array,
+        logger: logging.Logger,
+        halt: int = 9,
+        name: str = "",
     ):
+        """_summary_
+
+        Args:
+            original_errorword (np.array): _description_
+            logger (logging.Logger): _description_
+            halt (int, optional): _description_. Defaults to 9.
+            name (str, optional): _description_. Defaults to "".
+        """
 
         self.L = len(original_errorword[0])  # len
         assert math.log2(self.L) % 1 == 0, "L must be some 2**n where n is an int >= 1"
@@ -101,7 +111,7 @@ class ClassicFibDecoder:
         self.logger.info(f" Hx {self.Hx}")
         self.logger.info(f" Hy is code {self.Hy}")
 
-    def bit_to_rc(self, bit):
+    def bit_to_rc(self, bit: int) -> int:
         """
          This functions maps from bit index (0 to   (L**2)//2) - 1) to row, column mapping
         # DOESNT yet handle bits that are too big
@@ -140,10 +150,9 @@ class ClassicFibDecoder:
         cindx = bit % row_len
         return (rindx, cindx)
 
-    def rc_to_bit(self, row, col):
+    def rc_to_bit(self, row: int, col: int) -> int:
         """
-        # DOESNT yet handle row/columns that are too big
-        This functions maps from (row, column) indexing to bit  (0 to   (L**2)//2) - 1) indexing
+        #This functions maps from (row, column) indexing to bit  (0 to   (L**2)//2) - 1) indexing
 
         in bit notation we think of all the bits being in a line:
         So we have bit 0, bit 1, ... all the way until the last bit ((L**2)//2) - 1
@@ -175,47 +184,49 @@ class ClassicFibDecoder:
         bit = (row * self.L) + col
         return bit
 
-    def _generate_plus_x_trans_matrix(self):
-        "Takes bit to bit + 1 mod rownum aka shifts bit to the right but wraps around its current row"
+    def _generate_plus_x_trans_matrix(self) -> np.array:
+        """generate transition matrix for shifting every bit by x
+        "Takes bit to bit + 1 mod rownum aka shifts bit to the right but wraps around its current row"""
         H = np.zeros((self.no_bits, self.no_bits), dtype=int)
         for b in range(self.no_bits):
             new_bit = self.shift_by_x_scalar(b)
             H[new_bit][b] = 1
         return H
 
-    def _generate_plus_y_trans_matrix(self):
-        "takes bit to bit + L mod L//2 aka shifts bit the row below but very bottom row shifts to be the 0th row"
+    def _generate_plus_y_trans_matrix(self) -> np.array:
+        """generate transition matrix for shifting every bit by y
+        "takes bit to bit + L mod L//2 aka shifts bit the row below but very bottom row shifts to be the 0th row"""
         H = np.zeros((self.no_bits, self.no_bits), dtype=int)
         for b in range(self.no_bits):
             new_bit = self.shift_by_y_scalar(b)
             H[new_bit][b] = 1
         return H
 
-    def shift_by_x(self, bitarr, power=1):
-        # shifts every entry in board matrix right by 1 w/ wrap around
+    def shift_by_x(self, bitarr: np.array, power: int = 1):
+        """shifts every entry in board matrix right by power w/ wrap around"""
         power = power % self.L
         Hx = np.linalg.matrix_power(self.Hx, power)
         sol = np.matmul(Hx, bitarr)
         sol = sol.astype(int)
         return sol
 
-    def shift_by_y(self, bitarr, power=1):
-        # shifts every entry in board matrix down by 1 w/ wrap around
+    def shift_by_y(self, bitarr: np.array, power=1):
+        """shifts every entry in board matrix down by power w/ wrap around"""
         power = power % (self.L // 2)
         Hy = np.linalg.matrix_power(self.Hy, power)
         sol = np.matmul(Hy, bitarr)
         sol = sol.astype(int)
         return sol
 
-    def shift_by_y_scalar(self, bit, shift_no=1):
-        # shifts entry in board matrix down by 1 w/ wrap around
+    def shift_by_y_scalar(self, bit: int, shift_no: int = 1):
+        """shifts entry in board matrix down by 1 w/ wrap around"""
         new_bit = bit
         for _ in range(shift_no):
             new_bit = (new_bit + self.L) % self.no_bits
         return new_bit
 
-    def shift_by_x_scalar(self, bit, shift_no=1):
-        # shifts entry in board matrix right by 1 w/ wrap around
+    def shift_by_x_scalar(self, bit: int, shift_no: int = 1):
+        """shifts entry in board matrix right by 1 w/ wrap around"""
         new_bit = bit
         for _ in range(shift_no):
             new_bit = ((new_bit + 1) % self.L) + ((new_bit // self.L) * (self.L))
@@ -227,21 +238,38 @@ class ClassicFibDecoder:
             parity_mat[row] = self.shift_by_y(parity_mat[row], power=power)
         return parity_mat
 
-    def shift_parity_mat_by_x(self, parity_mat, power=1):
-        "EDITS PARITY MAT"
+    def shift_parity_mat_by_x(self, parity_mat: np.array, power: int = 1) -> np.array:
+        """Warning: Edits parity_mat! Shifts each bit in every row by power to the right, with wrap around.
+        Note, since this is a parity matrix, every row has (L**2)//2 bits.
+
+        Args:
+            parity_mat (np.array): Parity Matrix
+            power (int, optional): Number of times to shift each bit. Defaults to 1.
+
+        Returns:
+            np.array: Return the shifted array. Since arrays are mutable, this isn't strictly necessary.
+        """
         for row in range(len(parity_mat)):
             parity_mat[row] = self.shift_by_x(parity_mat[row], power=power)
         return parity_mat
 
-    def _calc_syndrome(self, check_matr, board=None):
+    def _calc_syndrome(self, check_matr: np.array, board: np.array = None):
+        """_summary_
+
+        Args:
+            check_matr (np.array): _description_
+            board (np.array, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         if board is None:
             board = self.board
-        #  % 2 # TODO numpy almost certainly has a way of efficiently dealing w binary matrices -- figure that out
         sol = np.matmul(check_matr, board) % 2
         sol = sol.astype(int)
         return sol
 
-    def _generate_init_symmetry(self, start_arr=None):
+    def _generate_init_symmetry(self, start_arr: np.array = None):
         if start_arr and sum(start_arr) != 1:
             raise ArgumentError(
                 f"Can only have a single 1 in start_arr. All else should be 0 but you have: {start_arr}"
@@ -262,7 +290,7 @@ class ClassicFibDecoder:
                 rect_board[row][bit] = new_val
         return rect_board
 
-    def generate_check_matrix_from_faces(self, stab_faces):
+    def generate_check_matrix_from_faces(self, stab_faces: np.array):
         """x
         STABS:           xxx
         """
@@ -298,7 +326,9 @@ class ClassicFibDecoder:
 
         return parity_mat, faces_to_stabs_rows
 
-    def generate_all_possible_error_syndromes(self, parity_check_matrix, no_bits=None):
+    def generate_all_possible_error_syndromes(
+        self, parity_check_matrix: np.array, no_bits: int = None
+    ):
 
         # "there's gotta be a smarter way to do this "
         if no_bits is None:
@@ -336,7 +366,7 @@ class ClassicFibDecoder:
 
         return error_pairs
 
-    def error_pairs2graph(self, error_graphs):
+    def error_pairs2graph(self, error_graphs: Set[int, int, int]):
         stab2node = {}
         graph = rx.PyGraph()
 
@@ -354,8 +384,9 @@ class ClassicFibDecoder:
         return graph, stab2node
 
     def decode_fib_code(self):
-        # generate graphs and mappings
+        """Run Decoder on given error board"""
 
+        # generate graphs and mappings
         h_correction = np.zeros(self.no_bits, dtype=int)
         v_correction = np.zeros(self.no_bits, dtype=int)
         parity_check_matrix = copy.deepcopy(self.fundamental_check_matrix)

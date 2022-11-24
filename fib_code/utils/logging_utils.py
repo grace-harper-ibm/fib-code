@@ -4,10 +4,20 @@ import os
 
 
 def new_logger_for_classic_fib_code_decoder(
-    log_folder_path,
-    name,
-    log_level,
-):
+    log_folder_path: str,
+    name: str,
+    log_level: logging._Level,
+) -> logging.Logger:
+    """Creates a new logger that can be passed to the decoder
+
+    Args:
+        log_folder_path (str): Path to folder where logs should be written to
+        name (str): Identifying information about the decoder instance this logger will be passed to. Will be used when naming logger and naming logfile.
+        log_level (logging._Level): Minimum level logger should log. Note, setting this to logging.NOTSET causes the logging not to log anything
+
+    Returns:
+        logging.Logger: Logger to be passed to decoder.
+    """
     tt = datetime.datetime.now()
     unique_log_info = f"{name}_{tt}"
     if log_level == logging.NOTSET:  # Then turn off logging
@@ -27,4 +37,5 @@ def new_logger_for_classic_fib_code_decoder(
     f_handler.setLevel(log_level)
     logger.addHandler(f_handler)
     logger.setLevel(log_level)
+
     return logger

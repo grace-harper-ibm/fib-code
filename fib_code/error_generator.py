@@ -5,13 +5,29 @@ def generate_swath_error(
     codeword_array: np.ndarray,
     width: int,
     offset: int = 0,
-    probability_of_error=1,
-    is_vertical=True,
+    probability_of_error: float = 1,
+    is_vertical: bool = True,
 ):
+    """Expects ALL codewords to be numpy array of shape: (L//2, L)
+    To generate iid error, simply set width to L and is_vertical to True
+
+
+    Args:
+        codeword_array (np.ndarray): _description_
+        width (int): _description_
+        offset (int, optional): _description_. Defaults to 0.
+        probability_of_error (float, optional): _description_. Defaults to 1.
+        is_vertical (bool, optional): _description_. Defaults to True.
+
+    Raises:
+        Exception: _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     if probability_of_error <= 0:
         raise Exception("Can't create errors with zero probability")
-    # TODO add is_wavy
-    """Expects ALL codewords to be numpy array of shape: (L//2, L)"""
     error_mask = np.zeros(codeword_array.shape, dtype=int)
 
     num_rows = len(codeword_array)
@@ -38,16 +54,3 @@ def generate_swath_error(
                     )
 
     return error_mask ^ codeword_array, error_mask
-
-
-""" 
-
-    def generate_errors(self, original_board, p):
-        board = copy.deepcopy(original_board)
-        cutoff = p * self.decip
-        for i in range(self.no_bits):
-            if random.randrange(1, self.decip + 1) <= cutoff:
-                board[i] ^= 1
-        return board
-
-"""
